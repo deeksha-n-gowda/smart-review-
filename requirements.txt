@@ -1,0 +1,40 @@
+# =============================================================================
+# AI Code Review Assistant — Python Dependencies
+# Install with: pip install -r requirements.txt
+# =============================================================================
+
+# --- Web Framework ---
+Django==4.2.13
+djangorestframework==3.15.1
+django-cors-headers==4.3.1          # Allow frontend to call the API cross-origin
+
+# --- Database ---
+psycopg2-binary==2.9.9              # PostgreSQL adapter (for production)
+# SQLite is built into Python — used by default in dev
+
+# --- Encryption ---
+pycryptodome==3.20.0                # AES-256-GCM encryption for code snippets
+
+# --- ML / Explainability ---
+scikit-learn==1.4.2
+numpy==1.26.4
+shap==0.45.0                        # SHAP explainability (TreeExplainer, LinearExplainer)
+lime==0.2.0.1                       # LIME local interpretable explanations
+
+# --- Code Analysis Helpers ---
+pylint==3.1.0                       # Python AST/lint analysis (used in ML pipeline)
+radon==6.0.1                        # Cyclomatic complexity metrics for Python
+javalang==0.13.0                    # Java source code tokenizer/parser
+
+# --- Utilities ---
+python-dotenv==1.0.1                # Load .env files into os.environ
+Pillow==10.3.0                      # Image handling (for report generation later)
+requests==2.31.0                    # HTTP client (for inter-service calls)
+celery==5.3.6                       # Async task queue (for long analysis jobs)
+redis==5.0.4                        # Celery broker backend
+
+# --- Dev / Testing ---
+pytest==8.2.0
+pytest-django==4.8.0
+factory-boy==3.3.0
+coverage==7.5.1

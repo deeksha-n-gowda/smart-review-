@@ -1,0 +1,73 @@
+# =============================================================================
+# .gitignore — AI Code Review Assistant
+# =============================================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+venv/
+env/
+.venv/
+pip-wheel-metadata/
+
+# --- Django ---
+*.sqlite3
+local_settings.py
+/staticfiles/
+/mediafiles/
+
+# --- Environment ---
+.env
+*.env.local
+*.env.*.local
+
+# --- IDE ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.DS_Store
+
+# --- Java ---
+*.class
+*.jar
+*.war
+*.ear
+target/
+.mvn/
+
+# --- C# / .NET ---
+*.user
+*.suo
+.vs/
+bin/
+obj/
+*.nupkg
+project.lock.json
+
+# --- Docker ---
+.dockerignore
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Coverage ---
+.coverage
+htmlcov/
+.pytest_cache/
+
+# --- Node (if any tooling added later) ---
+node_modules/
+npm-debug.log*

@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<!--
+  index.html — Dashboard Page
+  ============================
+  The landing page of the AI Code Review Assistant.
+  Shows a project list with risk scores, file counts, and vulnerability breakdowns.
+  Also contains the new-project upload flow.
+
+  Loaded directly by the browser (or served from Django at /).
+  JavaScript is vanilla ES Modules — no build step required.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered code review with explainable vulnerability detection." />
+  <title>Smart Review — Automated Code Analysis Platform</title>
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+
+  <!-- Inline critical styles for the topbar (prevents FOUC) -->
+  <style>
+    body { opacity: 0; transition: opacity 0.2s ease; }
+    body.ready { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- =========================================================
+     App Shell
+     ========================================================= -->
+<div class="app-shell">
+
+  <!-- Top Navigation Bar -->
+  <nav class="topbar" aria-label="Main navigation">
+    <div class="topbar__logo">
+      <div class="logo-icon" aria-hidden="true">SR</div>
+      <div>
+        <span>Smart Review</span>
+        <span class="logo-sub">Automated Code Analysis Platform</span>
+      </div>
+    </div>
+
+    <div class="topbar__nav">
+      <a href="/" class="topbar__nav-link active" aria-current="page">
+        <span aria-hidden="true">⊞</span> Dashboard
+      </a>
+      <a href="/review.html" class="topbar__nav-link">
+        <span aria-hidden="true">⎇</span> Review
+      </a>
+    </div>
+
+    <div class="topbar__right">
+      <!-- Health indicator -->
+      <div id="health-indicator" title="Backend status" style="display:flex; align-items:center; gap:6px; font-size:var(--text-xs); color:var(--text-muted);">
+        <span id="health-dot" style="width:8px; height:8px; border-radius:50%; background:var(--text-muted);"></span>
+        <span id="health-label">Connecting…</span>
+      </div>
+
+      <div class="divider--vertical" aria-hidden="true"></div>
+
+      <button class="btn btn-primary btn-sm" id="new-project-btn">
+        + New Project
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="app-content">
+
+    <!-- Left Sidebar: Recent activity / navigation -->
+    <aside class="sidebar" aria-label="Sidebar">
+      <div class="sidebar__header">
+        <span class="sidebar__section-label">Projects</span>
+        <button class="btn btn-ghost btn-sm" id="refresh-btn" title="Refresh">↺</button>
+      </div>
+      <div class="sidebar__body" id="sidebar-project-list">
+        <!-- Populated by JS -->
+        <div class="sidebar__item text-muted" style="cursor:default;">
+          <div class="spinner spinner--sm"></div>
+          <span>Loading…</span>
+        </div>
+      </div>
+      <div class="sidebar__footer">
+        <div style="font-size: var(--text-xs); color: var(--text-muted); line-height: 1.6;">
+          <div>Supported: Python · Java · C# · JS</div>
+          <div style="margin-top:4px;">
+            <a href="/api/v1/health/" target="_blank">API Health ↗</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Dashboard Main Area -->
+    <main class="dashboard-main" id="dashboard-main" aria-label="Dashboard content">
+
+      <!-- Header -->
+      <header class="dashboard-main__header">
+        <div>
+          <h1 class="dashboard-title">
+            Smart Review <span>Dashboard</span>
+          </h1>
+          <p class="dashboard-subtitle">
+            Upload source code files and get AI-powered vulnerability analysis with explainable results.
+          </p>
+        </div>
+        <button class="btn btn-primary" id="new-project-btn-main">
+          + New Project
+        </button>
+      </header>
+
+      <!-- Summary Stats Row -->
+      <section aria-label="Summary statistics">
+        <div class="stats-row" id="stats-row">
+          <div class="stat-card skeleton" style="height: 80px;"></div>
+          <div class="stat-card skeleton" style="height: 80px;"></div>
+          <div class="stat-card skeleton" style="height: 80px;"></div>
+          <div class="stat-card skeleton" style="height: 80px;"></div>
+        </div>
+      </section>
+
+      <!-- Projects Grid -->
+      <section aria-label="Projects">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: var(--space-4);">
+          <h2 style="font-size: var(--text-base); font-weight: 500; color: var(--text-secondary);">
+            Recent Projects
+          </h2>
+          <div style="display:flex; align-items:center; gap: var(--space-3);">
+            <input
+              type="text"
+              id="search-input"
+              class="form-input"
+              placeholder="Search projects…"
+              style="width: 220px; padding: 6px 12px;"
+              aria-label="Search projects"
+            />
+          </div>
+        </div>
+
+        <div class="projects-grid" id="projects-grid">
+          <!-- Skeleton loaders -->
+          <div class="skeleton" style="height: 180px; border-radius: var(--radius-lg);"></div>
+          <div class="skeleton" style="height: 180px; border-radius: var(--radius-lg);"></div>
+          <div class="skeleton" style="height: 180px; border-radius: var(--radius-lg);"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+
+<!-- =========================================================
+     New Project Modal
+     ========================================================= -->
+<div id="new-project-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <div class="modal__header">
+      <h2 class="modal__title" id="modal-title">New Code Review Project</h2>
+      <button class="btn btn-ghost btn-sm" id="modal-close" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal__body">
+      <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+
+        <!-- Project name -->
+        <div class="form-group">
+          <label class="form-label" for="project-name">Project Name</label>
+          <input
+            type="text"
+            id="project-name"
+            class="form-input"
+            placeholder="e.g. Assignment 3 – Sorting Algorithms"
+            maxlength="255"
+            required
+          />
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label class="form-label" for="project-desc">Description <span style="color:var(--text-muted); font-weight:300;">(optional)</span></label>
+          <textarea
+            id="project-desc"
+            class="form-input"
+            rows="2"
+            placeholder="What are you reviewing?"
+            style="resize: vertical;"
+          ></textarea>
+        </div>
+
+        <!-- File upload -->
+        <div class="form-group">
+          <label class="form-label">Upload Files</label>
+          <div
+            class="dropzone"
+            id="dropzone"
+            role="button"
+            tabindex="0"
+            aria-label="Drop files here or click to browse"
+          >
+            <div class="dropzone__icon" aria-hidden="true">⬆</div>
+            <div class="dropzone__title">Drop code files here</div>
+            <div class="dropzone__hint">or click to browse your file system</div>
+            <div class="dropzone__formats">
+              <span class="lang-tag python">Python</span>
+              <span class="lang-tag java">Java</span>
+              <span class="lang-tag csharp">C#</span>
+              <span class="lang-tag javascript">JavaScript</span>
+            </div>
+            <div class="form-hint" style="margin-top: var(--space-2);">Max 1 MB per file</div>
+          </div>
+          <input type="file" id="file-input" class="sr-only" multiple accept=".py,.java,.cs,.js,.mjs" aria-label="File upload" />
+        </div>
+
+        <!-- Upload queue -->
+        <div id="upload-queue" style="display:flex; flex-direction:column; gap:var(--space-2);"></div>
+
+      </div>
+    </div>
+
+    <div class="modal__footer">
+      <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-submit" disabled>
+        Create Project &amp; Analyze
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- =========================================================
+     Toast Container (injected by JS)
+     ========================================================= -->
+<div id="toast-root"></div>
+
+
+<!-- =========================================================
+     Scripts (ES Modules)
+     ========================================================= -->
+<script type="module">
+import { api, ApiError, useMockData } from "./js/api.js";
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function riskColor(score) {
+  if (score == null) return "var(--text-muted)";
+  if (score >= 0.7)  return "var(--sev-critical)";
+  if (score >= 0.4)  return "var(--sev-medium)";
+  return "var(--sev-low)";
+}
+
+function riskLabel(score) {
+  if (score == null) return "—";
+  if (score >= 0.7)  return "High Risk";
+  if (score >= 0.4)  return "Medium Risk";
+  return "Low Risk";
+}
+
+const Toast = {
+  show(message, type = "info", duration = 4000) {
+    let container = document.querySelector(".toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "toast-container";
+      document.body.appendChild(container);
+    }
+    const icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
+    const toast = document.createElement("div");
+    toast.className = `toast toast--${type}`;
+    toast.innerHTML = `<span style="flex-shrink:0">${icons[type]||"ℹ"}</span> <span>${esc(message)}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add("toast-exit");
+      toast.addEventListener("animationend", () => toast.remove(), { once: true });
+    }, duration);
+  },
+  success: m => Toast.show(m, "success"),
+  error:   m => Toast.show(m, "error", 6000),
+  warning: m => Toast.show(m, "warning"),
+  info:    m => Toast.show(m, "info"),
+};
+
+// ── State ────────────────────────────────────────────────────────────────────
+
+let allProjects  = [];
+let pendingFiles = []; // Files staged for upload
+
+// ── Health Check ─────────────────────────────────────────────────────────────
+
+async function checkHealth() {
+  const dot   = document.getElementById("health-dot");
+  const label = document.getElementById("health-label");
+  try {
+    const h = await api.health();
+    dot.style.background   = h.database === "connected" ? "var(--sev-low)" : "var(--sev-medium)";
+    label.textContent      = h.status === "ok" ? "Backend connected" : "Degraded";
+  } catch {
+    dot.style.background = "var(--sev-critical)";
+    label.textContent    = "Demo mode";
+    useMockData();
+    Toast.info("Backend not connected — showing demo data.");
+  }
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+
+async function loadProjects() {
+  try {
+    const data = await api.listProjects();
+    allProjects = data.results || data || [];
+    renderProjects(allProjects);
+    renderSidebar(allProjects);
+    renderStats(allProjects);
+  } catch (err) {
+    console.error("Failed to load projects:", err);
+    document.getElementById("projects-grid").innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1; padding:3rem 0;">
+        <div class="empty-state__icon">⚠</div>
+        <div class="empty-state__title">Could not load projects</div>
+        <div class="empty-state__desc font-serif">${esc(err.message)}</div>
+      </div>`;
+    Toast.error("Failed to load projects: " + err.message);
+  }
+}
+
+function renderStats(projects) {
+  const totalVulns    = projects.reduce((s, p) => s + (p.summary?.total_vulnerabilities || 0), 0);
+  const totalCritical = projects.reduce((s, p) => s + (p.summary?.critical_count || 0), 0);
+  const totalHigh     = projects.reduce((s, p) => s + (p.summary?.high_count || 0), 0);
+  const avgRisk       = projects.length
+    ? projects.reduce((s, p) => s + (p.overall_risk_score || 0), 0) / projects.length
+    : 0;
+
+  document.getElementById("stats-row").innerHTML = `
+    <div class="stat-card stat-card--amber">
+      <div class="stat-card__value">${projects.length}</div>
+      <div class="stat-card__label">Projects</div>
+      <div class="stat-card__accent"></div>
+    </div>
+    <div class="stat-card stat-card--critical">
+      <div class="stat-card__value">${totalCritical}</div>
+      <div class="stat-card__label">Critical Issues</div>
+      <div class="stat-card__accent"></div>
+    </div>
+    <div class="stat-card stat-card--high">
+      <div class="stat-card__value">${totalHigh}</div>
+      <div class="stat-card__label">High Issues</div>
+      <div class="stat-card__accent"></div>
+    </div>
+    <div class="stat-card stat-card--${avgRisk >= 0.7 ? "critical" : avgRisk >= 0.4 ? "high" : "green"}">
+      <div class="stat-card__value">${Math.round(avgRisk * 100)}%</div>
+      <div class="stat-card__label">Avg Risk Score</div>
+      <div class="stat-card__accent"></div>
+    </div>
+  `;
+}
+
+function renderProjects(projects) {
+  const grid = document.getElementById("projects-grid");
+
+  if (projects.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1; padding: 4rem 2rem;">
+        <div class="empty-state__icon">📁</div>
+        <div class="empty-state__title">No projects yet</div>
+        <div class="empty-state__desc font-serif">
+          Create your first project and upload code files to start reviewing.
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('new-project-btn').click()" style="margin-top:1rem;">
+          + Create Project
+        </button>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = "";
+  projects.forEach((project, idx) => {
+    const s       = project.summary || {};
+    const risk    = project.overall_risk_score;
+    const color   = riskColor(risk);
+    const total   = s.total_vulnerabilities || 0;
+    const critical = s.critical_count || 0;
+    const high     = s.high_count    || 0;
+    const medium   = (total - critical - high) > 0 ? total - critical - high : 0;
+
+    // Breakdown bar widths (percentage of total)
+    const critPct = total > 0 ? (critical / total * 100).toFixed(1) : 0;
+    const highPct = total > 0 ? (high     / total * 100).toFixed(1) : 0;
+    const medPct  = total > 0 ? (medium   / total * 100).toFixed(1) : 0;
+    const lowPct  = Math.max(0, 100 - +critPct - +highPct - +medPct).toFixed(1);
+
+    const card = document.createElement("a");
+    card.className = "project-card animate-fade-up";
+    card.href      = `/review.html?project=${esc(project.id)}`;
+    card.style.animationDelay = `${idx * 60}ms`;
+    card.setAttribute("aria-label", `Open project: ${project.name}`);
+
+    card.innerHTML = `
+      <div class="project-card__header">
+        <div class="project-card__icon" aria-hidden="true">📦</div>
+        <div class="project-card__info">
+          <div class="project-card__name">${esc(project.name)}</div>
+          <div class="project-card__meta">
+            <span>${s.total_files || 0} file${(s.total_files || 0) !== 1 ? "s" : ""}</span>
+            <span>·</span>
+            <span>${formatDate(project.created_at)}</span>
+          </div>
+        </div>
+        <div class="project-card__risk">
+          <div class="project-card__risk-value" style="color: ${color};">
+            ${risk != null ? Math.round(risk * 100) + "%" : "—"}
+          </div>
+          <div class="project-card__risk-label">${riskLabel(risk)}</div>
+        </div>
+      </div>
+
+      <div class="project-card__body">
+        <div class="vuln-breakdown" title="${total} total vulnerabilities" aria-label="Vulnerability breakdown">
+          <div class="vuln-breakdown__segment vuln-breakdown__segment--critical" style="flex: ${critPct};"></div>
+          <div class="vuln-breakdown__segment vuln-breakdown__segment--high"     style="flex: ${highPct};"></div>
+          <div class="vuln-breakdown__segment vuln-breakdown__segment--medium"   style="flex: ${medPct};"></div>
+          <div class="vuln-breakdown__segment" style="flex: ${lowPct}; background: var(--border-subtle);"></div>
+        </div>
+        <div class="vuln-counts">
+          ${critical > 0 ? `<span class="vuln-count-item"><span class="vuln-dot vuln-dot-critical"></span>${critical} critical</span>` : ""}
+          ${high > 0     ? `<span class="vuln-count-item"><span class="vuln-dot vuln-dot-high"></span>${high} high</span>` : ""}
+          ${medium > 0   ? `<span class="vuln-count-item"><span class="vuln-dot vuln-dot-medium"></span>${medium} med</span>` : ""}
+          ${total === 0  ? `<span class="vuln-count-item" style="color:var(--sev-low);">✓ Clean</span>` : ""}
+        </div>
+      </div>
+
+      <div class="project-card__footer">
+        <span class="project-card__footer-meta">${s.completed_files || 0} / ${s.total_files || 0} files analyzed</span>
+        <span class="badge badge-complete" style="font-size:9px;">Complete</span>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+function renderSidebar(projects) {
+  const list = document.getElementById("sidebar-project-list");
+  if (!list) return;
+  list.innerHTML = "";
+  projects.slice(0, 10).forEach(p => {
+    const item = document.createElement("a");
+    item.className = "sidebar__item";
+    item.href = `/review.html?project=${esc(p.id)}`;
+    const risk = p.overall_risk_score;
+    const dotColor = risk >= 0.7 ? "var(--sev-critical)" : risk >= 0.4 ? "var(--sev-medium)" : "var(--sev-low)";
+    item.innerHTML = `
+      <span class="item-icon" style="color:${dotColor};" aria-hidden="true">●</span>
+      <span class="item-name">${esc(p.name)}</span>
+      <span class="item-badge">${p.summary?.total_vulnerabilities || 0}</span>
+    `;
+    list.appendChild(item);
+  });
+
+  if (projects.length === 0) {
+    list.innerHTML = `<div class="sidebar__item" style="cursor:default; color:var(--text-muted);">No projects yet</div>`;
+  }
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+document.getElementById("search-input")?.addEventListener("input", (e) => {
+  const q       = e.target.value.toLowerCase();
+  const filtered = allProjects.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q)
+  );
+  renderProjects(filtered);
+});
+
+// ── New Project Modal ────────────────────────────────────────────────────────
+
+const modal       = document.getElementById("new-project-modal");
+const modalClose  = document.getElementById("modal-close");
+const modalCancel = document.getElementById("modal-cancel");
+const modalSubmit = document.getElementById("modal-submit");
+const dropzone    = document.getElementById("dropzone");
+const fileInput   = document.getElementById("file-input");
+const uploadQueue = document.getElementById("upload-queue");
+
+function openModal() { modal.classList.remove("hidden"); document.body.style.overflow = "hidden"; }
+function closeModal() {
+  modal.classList.add("hidden");
+  document.body.style.overflow = "";
+  pendingFiles = [];
+  renderQueue();
+  document.getElementById("project-name").value = "";
+  document.getElementById("project-desc").value = "";
+  fileInput.value = "";
+  updateSubmitBtn();
+}
+
+document.getElementById("new-project-btn")?.addEventListener("click", openModal);
+document.getElementById("new-project-btn-main")?.addEventListener("click", openModal);
+modalClose?.addEventListener("click", closeModal);
+modalCancel?.addEventListener("click", closeModal);
+modal?.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+// Escape key
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+// Drop zone
+dropzone?.addEventListener("click", () => fileInput.click());
+dropzone?.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+
+dropzone?.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("dragover"); });
+dropzone?.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+dropzone?.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("dragover");
+  addFiles([...e.dataTransfer.files]);
+});
+
+fileInput?.addEventListener("change", () => addFiles([...fileInput.files]));
+
+const ALLOWED_EXTS  = [".py", ".java", ".cs", ".js", ".mjs"];
+const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+
+function addFiles(files) {
+  files.forEach(file => {
+    const ext = "." + file.name.split(".").pop().toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) {
+      Toast.warning(`Skipped ${file.name} — unsupported file type.`);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      Toast.warning(`Skipped ${file.name} — file exceeds 1 MB limit.`);
+      return;
+    }
+    if (!pendingFiles.find(f => f.name === file.name && f.size === file.size)) {
+      pendingFiles.push(file);
+    }
+  });
+  renderQueue();
+  updateSubmitBtn();
+}
+
+function renderQueue() {
+  if (!uploadQueue) return;
+  uploadQueue.innerHTML = "";
+  pendingFiles.forEach((file, idx) => {
+    const ext     = "." + file.name.split(".").pop().toLowerCase();
+    const langMap = { ".py": "python", ".java": "java", ".cs": "csharp", ".js": "javascript", ".mjs": "javascript" };
+    const lang    = langMap[ext] || "";
+
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex; align-items:center; gap:var(--space-3); padding: var(--space-2) var(--space-3); background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: var(--radius-md);";
+    row.innerHTML = `
+      <span class="lang-tag ${lang}">${lang || ext}</span>
+      <span style="flex:1; font-size:var(--text-sm); font-family:var(--font-code); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(file.name)}</span>
+      <span style="font-size:var(--text-xs); color:var(--text-muted);">${(file.size / 1024).toFixed(1)} KB</span>
+      <button class="btn btn-ghost btn-sm" data-remove="${idx}" aria-label="Remove ${esc(file.name)}" style="color:var(--text-muted); font-size:12px; padding:0 4px;">✕</button>
+    `;
+    row.querySelector("[data-remove]")?.addEventListener("click", () => {
+      pendingFiles.splice(idx, 1);
+      renderQueue();
+      updateSubmitBtn();
+    });
+    uploadQueue.appendChild(row);
+  });
+}
+
+function updateSubmitBtn() {
+  const name = document.getElementById("project-name")?.value.trim();
+  if (modalSubmit) {
+    modalSubmit.disabled = !name || pendingFiles.length === 0;
+  }
+}
+document.getElementById("project-name")?.addEventListener("input", updateSubmitBtn);
+
+// ── Submit ───────────────────────────────────────────────────────────────────
+
+modalSubmit?.addEventListener("click", async () => {
+  const name = document.getElementById("project-name").value.trim();
+  const desc = document.getElementById("project-desc").value.trim();
+
+  if (!name || pendingFiles.length === 0) return;
+
+  modalSubmit.disabled    = true;
+  modalSubmit.textContent = "Creating…";
+
+  try {
+    // 1. Create project
+    const project = await api.createProject({ name, description: desc });
+    Toast.info(`Project "${name}" created. Uploading ${pendingFiles.length} file(s)…`);
+
+    // 2. Upload files sequentially
+    for (const file of pendingFiles) {
+      await api.uploadFile(project.id, file, null, (pct) => {
+        modalSubmit.textContent = `Uploading ${file.name}… ${pct}%`;
+      });
+    }
+
+    // 3. Close modal and reload
+    closeModal();
+    Toast.success(`Project "${name}" created with ${pendingFiles.length} file(s). Analyzing…`);
+    await loadProjects();
+
+    // Navigate to the review page for the new project
+    window.location.href = `/review.html?project=${project.id}`;
+
+  } catch (err) {
+    Toast.error(`Failed to create project: ${err.message}`);
+    modalSubmit.disabled    = false;
+    modalSubmit.textContent = "Create Project & Analyze";
+  }
+});
+
+// ── Refresh button ───────────────────────────────────────────────────────────
+document.getElementById("refresh-btn")?.addEventListener("click", loadProjects);
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+(async function init() {
+  document.body.classList.add("ready");
+  await checkHealth();
+  await loadProjects();
+})();
+
+</script>
+
+</body>
+</html>

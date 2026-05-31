@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<!--
+  review.html — Code Review Editor Page
+  =======================================
+  Three-pane interface:
+    Left:   Vulnerability list with severity filters
+    Center: Syntax-highlighted code editor with inline annotations
+    Right:  XAI feedback panel (SHAP/LIME charts, vulnerability detail, fix diff)
+
+  JavaScript is vanilla ES Modules loaded from /js/*.
+  No build step required — open directly in a browser or serve from Django.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Interactive code review with AI-powered vulnerability detection and explainable analysis." />
+  <title>Smart Review — Code Review</title>
+
+  <!-- All three stylesheets -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/editor.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+
+  <style>
+    /* Override body padding for full-screen app layout */
+    body {
+      margin: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    body.ready { opacity: 1; }
+
+    /* Keyboard shortcut hint */
+    .kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      background: var(--bg-overlay);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+<!-- =========================================================
+     App Shell
+     ========================================================= -->
+<div class="app-shell">
+
+  <!-- Top Navigation Bar -->
+  <nav class="topbar" aria-label="Main navigation">
+
+    <!-- Logo + Back -->
+    <div class="topbar__logo">
+      <a href="/" style="display:flex; align-items:center; gap:var(--space-2); text-decoration:none; color:inherit;">
+        <div class="logo-icon" aria-hidden="true">SR</div>
+        <div>
+          <span>Smart Review</span>
+          <span class="logo-sub">Automated Code Analysis Platform</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Breadcrumb / File Info -->
+    <div style="display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-xs); color:var(--text-muted);">
+      <a href="/" style="color:var(--text-muted);">Dashboard</a>
+      <span aria-hidden="true">/</span>
+      <span id="topbar-project-name" style="color:var(--text-secondary);">Loading…</span>
+      <span aria-hidden="true">/</span>
+      <span id="topbar-file-name" style="color:var(--text-primary); font-family:var(--font-code);">—</span>
+    </div>
+
+    <!-- Right side controls -->
+    <div class="topbar__right">
+
+      <!-- Keyboard shortcut hints -->
+      <div style="display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-xs); color:var(--text-muted);">
+        <span><kbd class="kbd">Alt+↑↓</kbd> cycle vulns</span>
+        <span><kbd class="kbd">Alt+←→</kbd> cycle tabs</span>
+      </div>
+
+      <div class="divider--vertical" aria-hidden="true"></div>
+
+      <!-- File risk score badge -->
+      <div id="topbar-risk" style="display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-xs);">
+        <span style="color:var(--text-muted);">Risk:</span>
+        <span id="topbar-risk-value" style="font-weight:500; color:var(--text-muted);">—</span>
+      </div>
+
+      <!-- Re-analyze button -->
+      <button class="btn btn-secondary btn-sm" id="reanalyze-btn" title="Trigger a fresh analysis on this file">
+        ↺ Re-analyze
+      </button>
+
+      <!-- Export button (Phase 4) -->
+      <button class="btn btn-ghost btn-sm" id="export-btn" title="Export analysis report (PDF) — Phase 4">
+        ⬇ Export
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main content area — populated by review.js -->
+  <div class="app-content" id="app-content">
+    <!--
+      review.js builds the three-pane layout here at runtime:
+        .vuln-sidebar   (left)
+        .editor-pane    (center)
+        .analysis-panel (right)
+
+      This loading state is shown while JS initialises.
+    -->
+    <main style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:var(--space-4);" aria-live="polite" aria-label="Loading">
+      <div class="spinner spinner--lg"></div>
+      <p style="color:var(--text-muted); font-size:var(--text-sm);">Loading code review…</p>
+    </main>
+  </div>
+
+</div>
+
+
+<!-- =========================================================
+     Toast Container
+     ========================================================= -->
+<div class="toast-container" id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+
+<!-- =========================================================
+     Scripts (ES Modules)
+     ========================================================= -->
+<script type="module">
+/**
+ * review.html bootstrap script.
+ *
+ * 1. Marks body as ready (fades in).
+ * 2. Rewires <main> so review.js can inject its layout into it.
+ * 3. Imports and initialises the ReviewPage controller.
+ * 4. Wires up the topbar controls (re-analyze, export, breadcrumb).
+ *
+ * The ReviewPage class (in review.js) does all the heavy lifting:
+ * fetching file data, rendering the editor, building the panels, etc.
+ */
+
+import { api, ApiError, useMockData } from "./js/api.js";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+const Toast = {
+  show(message, type = "info", duration = 4000) {
+    let c = document.querySelector(".toast-container");
+    if (!c) { c = document.createElement("div"); c.className = "toast-container"; document.body.appendChild(c); }
+    const icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
+    const t = document.createElement("div");
+    t.className = `toast toast--${type}`;
+    t.innerHTML = `<span style="flex-shrink:0">${icons[type]||"ℹ"}</span> <span>${esc(message)}</span>`;
+    c.appendChild(t);
+    setTimeout(() => { t.classList.add("toast-exit"); t.addEventListener("animationend", () => t.remove(), { once: true }); }, duration);
+  },
+  success: m => Toast.show(m, "success"),
+  error:   m => Toast.show(m, "error", 6000),
+  warning: m => Toast.show(m, "warning"),
+  info:    m => Toast.show(m, "info"),
+};
+
+// ── Route <main> to app-content so review.js builds into it ──────────────────
+
+// review.js's ReviewPage.init() calls:
+//   const main = document.querySelector("main") || document.body;
+// We want it to build inside #app-content, so we move the <main> inside it.
+const appContent = document.getElementById("app-content");
+const existingMain = document.querySelector("main");
+if (existingMain && appContent && !appContent.contains(existingMain)) {
+  appContent.innerHTML = ""; // remove loading state
+  appContent.appendChild(existingMain);
+}
+
+// ── Load ReviewPage ───────────────────────────────────────────────────────────
+
+// Dynamic import — review.js imports api.js, editor.js, shap_chart.js
+const { default: ReviewPageModule } = await import("./js/review.js").catch(err => {
+  console.error("Failed to load review.js:", err);
+  Toast.error("Failed to load review module. Check the console for details.");
+  return { default: null };
+});
+
+// review.js auto-initialises via its bottom-level call:
+//   const reviewPage = new ReviewPage(); reviewPage.init();
+// We just need to expose it to the topbar controls below.
+// It attaches itself to window for cross-module access.
+
+// ── Health Check ─────────────────────────────────────────────────────────────
+
+async function checkHealth() {
+  try {
+    await api.health();
+  } catch {
+    useMockData();
+  }
+}
+
+// ── Topbar: Breadcrumb + Risk badge ──────────────────────────────────────────
+
+async function updateTopbar() {
+  const params    = new URLSearchParams(window.location.search);
+  const fileId    = params.get("file");
+  const projectId = params.get("project");
+
+  // Update project name in breadcrumb
+  if (projectId) {
+    try {
+      const project = await api.getProject(projectId);
+      const el = document.getElementById("topbar-project-name");
+      if (el) el.textContent = project.name || "Project";
+    } catch { /* non-fatal */ }
+  } else {
+    const el = document.getElementById("topbar-project-name");
+    if (el) el.textContent = "Review";
+  }
+
+  // Update file name + risk score in topbar
+  if (fileId) {
+    try {
+      const file = await api.getFile(fileId);
+      const nameEl = document.getElementById("topbar-file-name");
+      const riskEl = document.getElementById("topbar-risk-value");
+      if (nameEl) nameEl.textContent = file.filename || fileId;
+      if (riskEl && file.risk_score != null) {
+        const pct   = Math.round(file.risk_score * 100);
+        const color = pct >= 70 ? "var(--sev-critical)" : pct >= 40 ? "var(--sev-medium)" : "var(--sev-low)";
+        riskEl.style.color = color;
+        riskEl.textContent = `${pct}%`;
+      }
+      // Update page title
+      document.title = `${file.filename} — CodeLens`;
+    } catch { /* non-fatal */ }
+  }
+}
+
+// ── Topbar: Re-analyze button ─────────────────────────────────────────────────
+
+document.getElementById("reanalyze-btn")?.addEventListener("click", async () => {
+  const params = new URLSearchParams(window.location.search);
+  const fileId = params.get("file");
+  if (!fileId) {
+    Toast.warning("No file selected to re-analyze.");
+    return;
+  }
+
+  const btn = document.getElementById("reanalyze-btn");
+  btn.disabled    = true;
+  btn.textContent = "↺ Analyzing…";
+
+  try {
+    const result = await api.analyzeFile(fileId);
+    Toast.success(result.message || "Analysis triggered. Refresh in a moment.");
+  } catch (err) {
+    Toast.error(`Could not trigger analysis: ${err.message}`);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = "↺ Re-analyze";
+  }
+});
+
+// ── Topbar: Export button (Phase 4 stub) ─────────────────────────────────────
+
+document.getElementById("export-btn")?.addEventListener("click", () => {
+  Toast.info("PDF export will be available in Phase 4.");
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+document.body.classList.add("ready");
+await checkHealth();
+await updateTopbar();
+
+</script>
+
+<!-- =========================================================
+     Inline: Keyboard shortcut overlay (? key)
+     ========================================================= -->
+<script type="module">
+// Show a keyboard shortcut cheatsheet when user presses ?
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "?" || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+
+  const existing = document.getElementById("shortcut-overlay");
+  if (existing) { existing.remove(); return; }
+
+  const overlay = document.createElement("div");
+  overlay.id = "shortcut-overlay";
+  overlay.className = "modal-backdrop";
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal__header">
+        <span class="modal__title">Keyboard Shortcuts</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('shortcut-overlay').remove()">✕</button>
+      </div>
+      <div class="modal__body" style="padding:var(--space-4);">
+        <table style="width:100%; border-collapse:collapse; font-size:var(--text-sm);">
+          <tbody>
+            ${[
+              ["Alt + ↓",       "Next vulnerability"],
+              ["Alt + ↑",       "Previous vulnerability"],
+              ["Alt + →",       "Next analysis tab"],
+              ["Alt + ←",       "Previous analysis tab"],
+              ["Escape",        "Close modal / deselect"],
+              ["?",             "Toggle this help overlay"],
+            ].map(([key, desc]) => `
+              <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:var(--space-2) var(--space-3) var(--space-2) 0; white-space:nowrap;">
+                  <kbd class="kbd">${key}</kbd>
+                </td>
+                <td style="padding:var(--space-2) 0; color:var(--text-secondary);">${desc}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+});
+</script>
+
+</body>
+</html>

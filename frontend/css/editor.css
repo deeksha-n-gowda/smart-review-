@@ -1,0 +1,533 @@
+/*
+ * editor.css — Code Editor View
+ * ================================
+ * Styles for the full-screen code editor pane in review.html.
+ * Renders source code with line numbers, syntax-like coloring,
+ * and interactive vulnerability highlight overlays.
+ */
+
+
+/* ============================================================
+   Review Page Layout (three-pane: sidebar | editor | panel)
+   ============================================================ */
+.review-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Vulnerability list pane (left, replaces global sidebar on review page) */
+.vuln-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vuln-sidebar__header {
+  padding: var(--space-4) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.vuln-sidebar__title {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.vuln-sidebar__filters {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-mono);
+}
+.filter-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.filter-chip.active {
+  color: var(--amber-bright);
+  border-color: var(--amber-dim);
+  background: var(--amber-glow);
+}
+
+.vuln-sidebar__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.vuln-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-left: 2px solid transparent;
+  position: relative;
+}
+.vuln-list-item:hover {
+  background: var(--bg-hover);
+}
+.vuln-list-item.active {
+  background: var(--bg-raised);
+}
+.vuln-list-item.active-critical { border-left-color: var(--sev-critical); }
+.vuln-list-item.active-high     { border-left-color: var(--sev-high); }
+.vuln-list-item.active-medium   { border-left-color: var(--sev-medium); }
+.vuln-list-item.active-low      { border-left-color: var(--sev-low); }
+.vuln-list-item.active-info     { border-left-color: var(--sev-info); }
+
+.vuln-list-item__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vuln-list-item__title {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vuln-list-item__line {
+  font-size: var(--text-xs);
+  font-family: var(--font-code);
+  color: var(--text-muted);
+}
+
+.vuln-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vuln-dot-critical { background: var(--sev-critical); }
+.vuln-dot-high     { background: var(--sev-high); }
+.vuln-dot-medium   { background: var(--sev-medium); }
+.vuln-dot-low      { background: var(--sev-low); }
+.vuln-dot-info     { background: var(--sev-info); }
+
+
+/* ============================================================
+   Code Editor Pane (center)
+   ============================================================ */
+.editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.editor-toolbar {
+  height: 40px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.editor-toolbar__filename {
+  font-size: var(--text-sm);
+  font-family: var(--font-code);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.editor-toolbar__filename .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber-bright);
+  flex-shrink: 0;
+}
+
+.editor-toolbar__meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* The scrollable code area */
+.editor-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-4) 0;
+  position: relative;
+}
+
+/* The actual code table (line numbers + code content side by side) */
+.editor-table {
+  display: table;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-code);
+  font-size: 13.5px;
+  line-height: 1.7;
+  tab-size: 4;
+}
+
+.editor-row {
+  display: table-row;
+  position: relative;
+}
+
+/* Highlight on hover */
+.editor-row:hover .editor-line-content {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* Vulnerability highlight rows */
+.editor-row.highlight-critical .editor-line-content {
+  background: rgba(239, 68, 68, 0.07);
+  border-right: 2px solid var(--sev-critical);
+}
+.editor-row.highlight-high .editor-line-content {
+  background: rgba(249, 115, 22, 0.07);
+  border-right: 2px solid var(--sev-high);
+}
+.editor-row.highlight-medium .editor-line-content {
+  background: rgba(234, 179, 8, 0.06);
+  border-right: 2px solid var(--sev-medium);
+}
+.editor-row.highlight-low .editor-line-content {
+  background: rgba(34, 197, 94, 0.05);
+  border-right: 2px solid var(--sev-low);
+}
+.editor-row.highlight-info .editor-line-content {
+  background: rgba(56, 189, 248, 0.05);
+  border-right: 2px solid var(--sev-info);
+}
+
+/* Active/selected vulnerability line — stronger highlight */
+.editor-row.selected-critical .editor-line-content {
+  background: rgba(239, 68, 68, 0.14) !important;
+}
+.editor-row.selected-high .editor-line-content {
+  background: rgba(249, 115, 22, 0.14) !important;
+}
+.editor-row.selected-medium .editor-line-content {
+  background: rgba(234, 179, 8, 0.12) !important;
+}
+
+/* Line number gutter */
+.editor-gutter {
+  display: table-cell;
+  width: 56px;
+  min-width: 56px;
+  padding: 0 var(--space-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
+  border-right: 1px solid var(--border-subtle);
+  vertical-align: top;
+  position: relative;
+  background: var(--bg-base);
+}
+
+/* Gutter indicators for vulnerabilities */
+.editor-gutter::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+}
+
+.editor-row.has-vuln .editor-gutter {
+  color: var(--text-secondary);
+}
+
+/* The indicator icon in gutter */
+.gutter-marker {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  margin-left: var(--space-1);
+  cursor: pointer;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.gutter-marker-critical { background: var(--sev-critical); color: white; }
+.gutter-marker-high     { background: var(--sev-high); color: white; }
+.gutter-marker-medium   { background: var(--sev-medium); color: var(--bg-base); }
+.gutter-marker-low      { background: var(--sev-low); color: var(--bg-base); }
+.gutter-marker-info     { background: var(--sev-info); color: var(--bg-base); }
+
+/* Code content cell */
+.editor-line-content {
+  display: table-cell;
+  padding: 0 var(--space-8) 0 var(--space-4);
+  white-space: pre;
+  overflow: visible;
+  vertical-align: top;
+  transition: background var(--transition-fast);
+}
+
+/* ---- Syntax coloring tokens (applied by tokenizer in editor.js) ---- */
+
+.tok-keyword    { color: #c586c0; font-weight: 500; }  /* purple — for/if/class/def */
+.tok-builtin    { color: #4ec9b0; }                    /* teal — print/len/range */
+.tok-string     { color: #ce9178; }                    /* orange-brown — "strings" */
+.tok-string2    { color: #ce9178; }                    /* same for single-quote */
+.tok-comment    { color: #4d5a6e; font-style: italic; }/* gray-blue — # comments */
+.tok-number     { color: #b5cea8; }                    /* light green — numbers */
+.tok-operator   { color: #d4d4d4; }                    /* light — operators */
+.tok-decorator  { color: #dcdcaa; }                    /* yellow — @decorators */
+.tok-classname  { color: #4ec9b0; font-weight: 500; }  /* teal — class names */
+.tok-funcname   { color: #dcdcaa; }                    /* yellow — function names */
+.tok-parameter  { color: #9cdcfe; }                    /* light blue — parameters */
+.tok-type       { color: #4ec9b0; }                    /* teal — type hints */
+.tok-constant   { color: #9cdcfe; }                    /* light blue — constants */
+.tok-punctuation{ color: #808080; }                    /* gray — brackets */
+.tok-tag        { color: #4ec9b0; }                    /* teal — HTML/JSX tags */
+.tok-attr       { color: #9cdcfe; }                    /* blue — attributes */
+.tok-regex      { color: #d16969; }                    /* red — regex literals */
+
+/* Inline code spans (for vulnerability descriptions) */
+code, .inline-code {
+  font-family: var(--font-code);
+  font-size: 0.85em;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  color: var(--text-code);
+}
+
+
+/* ============================================================
+   Inline Vulnerability Annotation
+   (the callout that appears below the flagged line)
+   ============================================================ */
+.vuln-annotation {
+  display: table-row;
+  /* Created dynamically by editor.js when a vulnerability is selected */
+}
+
+.vuln-annotation-cell {
+  display: table-cell;
+  padding: 0;
+  /* Spans all columns */
+  colspan: 2;
+}
+
+.vuln-callout {
+  margin: var(--space-1) var(--space-4) var(--space-2) 60px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--sev-critical);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  animation: fade-up 0.2s ease;
+  max-width: 700px;
+  position: relative;
+}
+.vuln-callout::before {
+  content: '▶';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 8px;
+  color: inherit;
+}
+
+.vuln-callout--critical { border-left-color: var(--sev-critical); color: rgba(239,68,68,0.9); }
+.vuln-callout--high     { border-left-color: var(--sev-high);     color: rgba(249,115,22,0.9); }
+.vuln-callout--medium   { border-left-color: var(--sev-medium);   color: rgba(234,179,8,0.9); }
+.vuln-callout--low      { border-left-color: var(--sev-low);      color: rgba(34,197,94,0.9); }
+.vuln-callout--info     { border-left-color: var(--sev-info);     color: rgba(56,189,248,0.9); }
+
+.vuln-callout__title {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vuln-callout__text {
+  font-family: var(--font-serif);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.vuln-callout__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+
+/* ============================================================
+   Code Diff Block (original vs fixed snippet)
+   ============================================================ */
+.code-diff {
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 1.6;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+}
+
+.code-diff__header {
+  display: flex;
+  background: var(--bg-overlay);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.code-diff__tab {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-bottom: 2px solid transparent;
+}
+.code-diff__tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--amber-bright);
+}
+
+.code-diff__body {
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-raised);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.diff-line-removed { color: var(--sev-critical); background: rgba(239,68,68,0.06); display: block; }
+.diff-line-added   { color: var(--sev-low); background: rgba(34,197,94,0.06); display: block; }
+.diff-line-context { color: var(--text-secondary); display: block; }
+
+.diff-line-removed::before { content: '− '; }
+.diff-line-added::before   { content: '+ '; }
+.diff-line-context::before { content: '  '; }
+
+
+/* ============================================================
+   Empty States
+   ============================================================ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-16) var(--space-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state__icon {
+  font-size: 2.5rem;
+  opacity: 0.4;
+}
+
+.empty-state__title {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.empty-state__desc {
+  font-size: var(--text-sm);
+  font-family: var(--font-serif);
+  font-style: italic;
+  max-width: 300px;
+  line-height: 1.6;
+}
+
+
+/* ============================================================
+   File tabs (top of editor, like VS Code tabs)
+   ============================================================ */
+.file-tabs {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.file-tabs::-webkit-scrollbar { height: 3px; }
+
+.file-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-xs);
+  font-family: var(--font-code);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+  border-right: 1px solid var(--border-subtle);
+}
+.file-tab:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+.file-tab.active {
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border-bottom-color: var(--amber-bright);
+}
+
+.file-tab__indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

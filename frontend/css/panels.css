@@ -1,0 +1,770 @@
+/*
+ * panels.css — Feedback Panels & XAI Visualizations
+ * ===================================================
+ * Styles for the right-hand analysis panel in review.html:
+ *   - Vulnerability detail card
+ *   - SHAP feature importance bar chart
+ *   - LIME explanation view
+ *   - Recommendation block
+ *   - Reference links (CWE/OWASP)
+ *
+ * Also contains the dashboard's project card list styles.
+ */
+
+
+/* ============================================================
+   Analysis Panel (right pane in review layout)
+   ============================================================ */
+.analysis-panel {
+  width: var(--panel-width);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  height: 40px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.panel-header__title {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.panel-tab {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-bottom: 2px solid transparent;
+  font-family: var(--font-mono);
+}
+.panel-tab:hover { color: var(--text-secondary); }
+.panel-tab.active {
+  color: var(--amber-bright);
+  border-bottom-color: var(--amber-bright);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Section inside the panel */
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.panel-section__label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.panel-section__label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+
+/* ============================================================
+   Vulnerability Detail Card (in panel)
+   ============================================================ */
+.vuln-detail-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  animation: fade-up 0.25s ease;
+}
+
+.vuln-detail-card__header {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.vuln-detail-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.vuln-detail-card__title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  flex: 1;
+}
+
+.vuln-detail-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.vuln-meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.vuln-meta-item .meta-icon { font-size: 11px; }
+
+.vuln-detail-card__body {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Description text */
+.vuln-description {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* CWE / OWASP reference pills */
+.ref-pills {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ref-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-family: var(--font-code);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  background: var(--bg-overlay);
+  transition: all var(--transition-fast);
+}
+.ref-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.ref-pill--cwe   { border-color: rgba(249,115,22,0.3); color: var(--sev-high); }
+.ref-pill--owasp { border-color: rgba(56,189,248,0.3); color: var(--sev-info); }
+
+/* Confidence meter */
+.confidence-meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.confidence-meter__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.confidence-meter__bar {
+  height: 3px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.confidence-meter__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber-soft), var(--amber-bright));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+
+/* ============================================================
+   Recommendation Block
+   ============================================================ */
+.recommendation-block {
+  background: rgba(34, 197, 94, 0.04);
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.recommendation-block__label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--sev-low);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.recommendation-block__text {
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+
+/* ============================================================
+   SHAP / LIME Explanation Section
+   ============================================================ */
+.xai-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: fade-up 0.3s ease;
+}
+
+.xai-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.xai-method-badge {
+  font-size: var(--text-xs);
+  font-family: var(--font-code);
+  padding: 3px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--amber-dim);
+  color: var(--amber-bright);
+  background: var(--amber-glow);
+  font-weight: 500;
+}
+
+.xai-summary {
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-style: italic;
+}
+
+
+/* ============================================================
+   SHAP Bar Chart
+   ============================================================ */
+.shap-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.shap-chart-title {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Each feature row in the SHAP bar chart */
+.shap-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: fade-in-fast 0.2s ease;
+}
+
+.shap-row__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shap-row__feature-name {
+  font-size: var(--text-xs);
+  font-family: var(--font-code);
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shap-row__value {
+  font-size: var(--text-xs);
+  font-family: var(--font-code);
+  font-weight: 500;
+  min-width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.shap-row__bar-track {
+  height: 8px;
+  background: var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  /* Center line for +/- values */
+}
+
+.shap-row__bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+}
+
+/* Positive SHAP — increases risk (amber/red) */
+.shap-row__bar-fill--positive {
+  left: 50%;
+  background: linear-gradient(90deg, var(--sev-high), var(--sev-critical));
+}
+
+/* Negative SHAP — decreases risk (green) */
+.shap-row__bar-fill--negative {
+  right: 50%;
+  background: linear-gradient(90deg, var(--sev-low), #16a34a);
+}
+
+/* Center divider line */
+.shap-row__bar-track::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-default);
+  z-index: 1;
+}
+
+.shap-row__value--positive { color: var(--sev-high); }
+.shap-row__value--negative { color: var(--sev-low); }
+
+/* Legend */
+.shap-legend {
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+
+.shap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.shap-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.shap-legend-dot--pos { background: var(--sev-critical); }
+.shap-legend-dot--neg { background: var(--sev-low); }
+
+/* Canvas-based SHAP chart (shap_chart.js renders to this) */
+#shap-canvas {
+  width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  display: block;
+}
+
+
+/* ============================================================
+   LIME Explanation View
+   ============================================================ */
+.lime-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lime-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  transition: border-color var(--transition-fast);
+}
+.lime-row:hover { border-color: var(--border-default); }
+
+.lime-row__feature {
+  font-family: var(--font-code);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.lime-row__weight {
+  font-family: var(--font-code);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  min-width: 48px;
+  text-align: right;
+}
+
+.lime-row__bar {
+  width: 60px;
+  height: 6px;
+  background: var(--border-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.lime-row__bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  position: absolute;
+  right: 0;
+  transition: width 0.5s ease;
+}
+.lime-row__bar-fill--pos { background: var(--sev-critical); left: 0; right: auto; }
+.lime-row__bar-fill--neg { background: var(--sev-low); }
+
+.lime-probability {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-overlay);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+}
+
+.lime-prob-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.lime-prob-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0 var(--space-3);
+}
+
+.lime-prob-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber-soft), var(--sev-critical));
+  border-radius: 4px;
+  transition: width 0.7s ease;
+}
+
+.lime-prob-value {
+  font-size: var(--text-sm);
+  font-family: var(--font-code);
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 40px;
+  text-align: right;
+}
+
+
+/* ============================================================
+   Dashboard — Project Cards
+   ============================================================ */
+.dashboard-layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.dashboard-main__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.dashboard-title {
+  font-size: var(--text-2xl);
+  font-weight: 300;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.dashboard-title span {
+  color: var(--amber-bright);
+  font-weight: 500;
+}
+
+.dashboard-subtitle {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Project cards grid */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-5);
+}
+
+.project-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition-med);
+  display: flex;
+  flex-direction: column;
+  animation: fade-up 0.3s ease backwards;
+  text-decoration: none;
+}
+.project-card:hover {
+  border-color: var(--border-default);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.project-card__header {
+  padding: var(--space-5);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.project-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.project-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-card__name {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: var(--space-1);
+}
+
+.project-card__meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Risk score display on the card */
+.project-card__risk {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.project-card__risk-value {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.project-card__risk-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.project-card__body {
+  padding: 0 var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Mini vulnerability breakdown bar */
+.vuln-breakdown {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.vuln-breakdown__segment {
+  transition: flex 0.4s ease;
+}
+.vuln-breakdown__segment--critical { background: var(--sev-critical); }
+.vuln-breakdown__segment--high     { background: var(--sev-high); }
+.vuln-breakdown__segment--medium   { background: var(--sev-medium); }
+.vuln-breakdown__segment--low      { background: var(--sev-low); }
+
+.vuln-counts {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.vuln-count-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-code);
+}
+
+.project-card__footer {
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-card__footer-meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+
+/* ============================================================
+   Upload Section (on dashboard)
+   ============================================================ */
+.upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 680px;
+}
+
+.upload-section__title {
+  font-size: var(--text-lg);
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+/* Upload progress indicator */
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  animation: fade-up 0.2s ease;
+}
+
+.upload-progress__filename {
+  font-family: var(--font-code);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.upload-progress__bar {
+  height: 3px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.upload-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber-soft), var(--amber-bright));
+  border-radius: 2px;
+  animation: upload-progress-anim 1.5s ease-in-out infinite;
+}
+
+@keyframes upload-progress-anim {
+  0%   { width: 5%; }
+  50%  { width: 80%; }
+  100% { width: 95%; }
+}
+
+
+/* ============================================================
+   Scrollbar overrides for panels
+   ============================================================ */
+.panel-body::-webkit-scrollbar { width: 4px; }
+.panel-body::-webkit-scrollbar-thumb { background: var(--border-default); }
+
+.vuln-sidebar__list::-webkit-scrollbar { width: 4px; }
+.vuln-sidebar__list::-webkit-scrollbar-thumb { background: var(--border-default); }
