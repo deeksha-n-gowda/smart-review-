@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      CodeLens C# Analysis Daemon
+      ============================
+      A console application that listens on a named pipe (Windows) or
+      Unix domain socket (Linux/macOS) and performs Roslyn-based C# syntax
+      analysis on code snippets sent by the Django backend.
+
+      Lightweight alternative to a full VS Code extension — mimics the
+      analysis daemon that VS Code's C# extension runs in the background.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>CodeReviewDaemon</AssemblyName>
+    <RootNamespace>CodeReview</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Optimize>false</Optimize>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <LangVersion>12</LangVersion>
+
+    <!-- Self-contained publish for easy deployment -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+
+    <!-- Metadata -->
+    <Version>1.0.0</Version>
+    <Description>CodeLens C# Syntax Analysis Daemon</Description>
+    <Authors>Capstone Team</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Microsoft.CodeAnalysis.CSharp (Roslyn)
+      The C# compiler-as-a-service API. Used to parse C# source into
+      a SyntaxTree and SemanticModel for deep static analysis.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
+
+    <!--
+      System.Text.Json — built-in .NET JSON (de)serializer.
+      No Newtonsoft.Json dependency needed.
+    -->
+    <!-- System.Text.Json is included in .NET 8 SDK, no explicit reference needed -->
+  </ItemGroup>
+
+</Project>

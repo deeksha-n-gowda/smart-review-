@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    pom.xml — Java Code Compiler / Syntax Check Microservice
+    =========================================================
+    A lightweight HTTP microservice (no Spring Boot — pure Java 17 + Sun HttpServer)
+    that accepts code snippets and runs javac / syntax validation against them.
+
+    Dependencies are intentionally minimal to keep the service lean and the
+    Docker image small. The only third-party library is Gson for JSON parsing.
+
+    Build:
+        mvn clean package -q
+        java -jar target/code-review-service-1.0.jar
+
+    Or from the project root:
+        docker-compose up java_service
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.codereview</groupId>
+    <artifactId>code-review-service</artifactId>
+    <version>1.0</version>
+    <packaging>jar</packaging>
+
+    <name>CodeLens Java Compiler Service</name>
+    <description>
+        Lightweight HTTP microservice for Java code compilation and syntax checking.
+        Accepts POST requests with Java source snippets and returns compile diagnostics.
+    </description>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <gson.version>2.10.1</gson.version>
+    </properties>
+
+    <dependencies>
+        <!-- JSON serialization/deserialization — only external dependency -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
+        </dependency>
+
+        <!-- JUnit 5 for unit tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Compiler plugin — enforce Java 17 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- Shade plugin — creates a fat JAR with Gson bundled in -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.codereview.CompilerService</mainClass>
+                                </transformer>
+                            </transformers>
+                            <!-- Suppress warnings about duplicate META-INF entries -->
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Surefire — run JUnit 5 tests with mvn test -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

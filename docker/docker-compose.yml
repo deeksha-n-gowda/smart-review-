@@ -1,0 +1,161 @@
+# docker-compose.yml — CodeLens AI Code Review Assistant
+# =========================================================
+# Orchestrates four services:
+#
+#   django      — Python/Django REST API + frontend server (port 8000)
+#   java        — Java code compiler microservice           (port 9090)
+#   csharp      — C# analysis daemon                        (port 9091)
+#   db          — PostgreSQL database                       (port 5432)
+#
+# Quick start (from project root):
+#   cp .env.example .env          # Edit AES_SECRET_KEY and SECRET_KEY
+#   docker-compose up --build
+#
+# Production-like startup with fresh data:
+#   SEED_DEV_DATA=true docker-compose up --build
+#
+# Access:
+#   Dashboard:   http://localhost:8000
+#   API:         http://localhost:8000/api/v1/health/
+#   Admin:       http://localhost:8000/admin/
+#   Java health: http://localhost:9090/health
+#   C# health:   http://localhost:9091/health
+
+version: "3.9"
+
+# ── Shared environment for all services ────────────────────────────────────────
+x-common-env: &common-env
+  TZ: UTC
+
+services:
+
+  # ── PostgreSQL Database ──────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB:       code_review_db
+      POSTGRES_USER:     codelens
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-codelens_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Init script: creates the DB if it doesn't exist
+      - ../docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codelens -d code_review_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  # ── Django Backend ───────────────────────────────────────────────────────────
+  django:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      DJANGO_SETTINGS_MODULE: config.settings
+      SECRET_KEY:             ${SECRET_KEY:-django-insecure-change-me-in-production}
+      DEBUG:                  ${DEBUG:-False}
+      ALLOWED_HOSTS:          ${ALLOWED_HOSTS:-localhost,127.0.0.1,django}
+      DATABASE_URL:           postgresql://codelens:${DB_PASSWORD:-codelens_dev_password}@db:5432/code_review_db
+      AES_SECRET_KEY:         ${AES_SECRET_KEY:-}
+      JAVA_SERVICE_HOST:      java
+      JAVA_SERVICE_PORT:      9090
+      CSHARP_PIPE_NAME:       CodeReviewDaemonPipe
+      CORS_ALLOWED_ORIGINS:   http://localhost:3000,http://localhost:8000
+      RUN_MIGRATIONS:         "true"
+      SEED_DEV_DATA:          ${SEED_DEV_DATA:-false}
+      # Optional Django superuser creation on first start
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:-admin}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-admin}
+      DJANGO_SUPERUSER_EMAIL:    ${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source for development hot-reloading (comment out for production)
+      - ../backend:/app
+      - ../frontend:/app/frontend
+      # Persist media files (uploaded code snippets)
+      - media_files:/app/mediafiles
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - backend
+      - frontend
+
+  # ── Java Compiler Microservice ───────────────────────────────────────────────
+  java:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.java
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      JAVA_SERVICE_PORT: 9090
+      JAVA_OPTS:         "-Xmx256m -Xms64m"
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - backend
+
+  # ── C# Analysis Daemon ────────────────────────────────────────────────────────
+  csharp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.csharp
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      CSHARP_PORT:  9091
+      DAEMON_MODE:  http
+    ports:
+      - "9091:9091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - backend
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  backend:
+    driver: bridge
+    # Internal network — Java and C# services not exposed externally beyond their ports
+  frontend:
+    driver: bridge
+    # Django's public-facing network
+
+# ── Volumes ────────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+    labels:
+      - "com.codelens.description=PostgreSQL data for code review database"
+  media_files:
+    driver: local
+    labels:
+      - "com.codelens.description=Uploaded code files (AES-encrypted)"

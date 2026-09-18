@@ -56,37 +56,17 @@ class FrontendHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def guess_type(self, path):
-        """Extend MIME type guessing for modern file types, safely handling Windows Registry bugs."""
-        # 1. Call super() safely without immediately unpacking
-        res = super().guess_type(path)
-        
-        # 2. Extract the mime type depending on what Windows returned
-        if isinstance(res, tuple) and len(res) >= 1:
-            mime = res[0]
-        elif isinstance(res, str):
-            mime = res
-        else:
-            mime = None
-
-        # 3. Apply your custom modern extension overrides and fallbacks
-        ext = Path(str(path)).suffix.lower()
-        extras = {
-            ".js": "application/javascript",
-            ".mjs": "application/javascript",
-            ".css": "text/css",
-            ".html": "text/html",
-            ".svg": "image/svg+xml",
-            ".woff2": "font/woff2",
-        }
-
-        # If Windows failed or if it's one of our specific modern formats, grab from extras
-        if ext in extras:
-            mime = extras[ext]
-        elif not mime:
-            mime = "application/octet-stream"
-
-        # The parent SimpleHTTPRequestHandler expects just a string returned from guess_type
-        return mime
+        """Extend MIME type guessing for modern file types."""
+        mime, _ = super().guess_type(path)
+        if not mime:
+            ext = Path(str(path)).suffix.lower()
+            extras = {
+                ".mjs": "application/javascript",
+                ".svg": "image/svg+xml",
+                ".woff2": "font/woff2",
+            }
+            mime = extras.get(ext, "application/octet-stream")
+        return mime, None
 
     def do_GET(self):
         # Serve index.html for unknown paths (SPA fallback)
@@ -124,7 +104,7 @@ def main():
 
         print()
         print("╔══════════════════════════════════════════════════════╗")
-        print("║         Smart Review —  Dev Server               ║")
+        print("║         CodeLens — Frontend Dev Server               ║")
         print("╠══════════════════════════════════════════════════════╣")
         print(f"║  Serving:   {FRONTEND_DIR}")
         print(f"║  URL:       {url}")

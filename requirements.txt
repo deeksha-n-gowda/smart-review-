@@ -9,14 +9,14 @@ djangorestframework==3.15.1
 django-cors-headers==4.3.1          # Allow frontend to call the API cross-origin
 
 # --- Database ---
-psycopg2-binary==2.9.9              # PostgreSQL adapter (for production)
+psycopg2-binary==2.9.10              # PostgreSQL adapter (for production)
 # SQLite is built into Python — used by default in dev
 
 # --- Encryption ---
 pycryptodome==3.20.0                # AES-256-GCM encryption for code snippets
 
 # --- ML / Explainability ---
-scikit-learn==1.4.2
+scikit-learn==1.5.0
 numpy==1.26.4
 shap==0.45.0                        # SHAP explainability (TreeExplainer, LinearExplainer)
 lime==0.2.0.1                       # LIME local interpretable explanations
@@ -36,5 +36,6 @@ redis==5.0.4                        # Celery broker backend
 # --- Dev / Testing ---
 pytest==8.2.0
 pytest-django==4.8.0
+pytest-cov==5.0.0
 factory-boy==3.3.0
 coverage==7.5.1
