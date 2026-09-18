@@ -273,6 +273,4 @@ See [`.env.example`](.env.example) for the full list.
 ---
 
 ## Capstone Project Info
-
-**Institution:** Computer Science Department  
 **Repository:** https://github.com/deeksha-n-gowda/smart-review-.git
