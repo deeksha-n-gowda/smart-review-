@@ -1,6 +1,6 @@
 # Smart Review — AI-Powered Code Review Assistant
 
-A full-stack intelligent code review system built as a capstone project. It performs static analysis across four languages, explains every finding using SHAP/LIME, encrypts all uploaded source code with AES-256-GCM, and is fully containerised with Docker.
+A full-stack intelligent code review system built as a capstone project. It performs static analysis across four languages, explains every finding with illustrative SHAP/LIME-style attributions, encrypts all uploaded source code with AES-256-GCM, and is fully containerised with Docker.
 
 ---
 
@@ -8,10 +8,10 @@ A full-stack intelligent code review system built as a capstone project. It perf
 
 - Accepts code file uploads via REST API or the web UI
 - Runs a rule-based ML pipeline to detect vulnerabilities (SQL injection, XSS, hardcoded secrets, insecure patterns, and more)
-- Generates SHAP/LIME explanations for every finding — not just "what" but "why"
+- Generates SHAP/LIME-style explanations for every finding — not just "what" but "why". (Explanations are illustrative: they are computed from a built-in rule-weight model, not a trained ML model — see [`docs/architecture.md`](docs/architecture.md).)
 - Encrypts source code at rest using AES-256-GCM before storing to the database
-- Delegates Java compilation checks to a Java microservice (javax.tools)
-- Delegates C# syntax analysis to a .NET 8 daemon using Roslyn
+- Delegates Java compilation checks to a Java microservice (javax.tools) and merges its diagnostics into the findings
+- Delegates C# syntax analysis to a .NET 8 daemon using Roslyn and merges its diagnostics into the findings
 - Serves a Vanilla JS frontend with a code editor view and visual feedback panels
 
 ---
@@ -21,10 +21,10 @@ A full-stack intelligent code review system built as a capstone project. It perf
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.11, Django 4.2, Django REST Framework |
-| ML / XAI | Rule-based static analysis, SHAP / LIME explanations |
+| ML / XAI | Rule-based static analysis, illustrative SHAP / LIME attributions |
 | Encryption | PyCryptodome — AES-256-GCM |
 | Frontend | Vanilla JS (ES6+), HTML5, CSS3 — no frameworks |
-| Java Service | Java 17, Spring Boot, javax.tools JavaCompiler |
+| Java Service | Java 17, com.sun.net.httpserver (no framework), javax.tools JavaCompiler |
 | C# Daemon | .NET 8, Roslyn SDK, HTTP + Named Pipe modes |
 | Database | SQLite (dev) / PostgreSQL (prod) |
 | Containers | Docker 24+, Docker Compose v2 |
@@ -40,9 +40,10 @@ smart-review/
 │   ├── config/                 Settings, URLs, WSGI
 │   ├── core/                   Models — Project, CodeFile, Vulnerability, Explanation
 │   ├── api/                    REST API — views, serializers, URL routing
+│   │   └── enrichment.py       Merges Java/C# service diagnostics into findings
 │   ├── ml/                     ML pipeline
 │   │   ├── analyzer.py         Static analysis engine
-│   │   ├── explainer.py        SHAP / LIME explanation generator
+│   │   ├── explainer.py        Illustrative SHAP / LIME attribution generator
 │   │   └── rules/              Per-language rule definitions
 │   │       ├── python_rules.py
 │   │       ├── java_rules.py
@@ -50,8 +51,7 @@ smart-review/
 │   │       └── javascript_rules.py
 │   ├── security/
 │   │   └── encryption.py       AES-256-GCM helper
-│   ├── templates/dashboard/    Django HTML templates
-│   ├── static/                 CSS, JS, images
+│   ├── static/                 Django static files (collectstatic target)
 │   ├── tests/                  Pytest test suite
 │   ├── conftest.py
 │   └── pytest.ini
@@ -62,7 +62,7 @@ smart-review/
 │   ├── css/
 │   └── js/
 │
-├── java_service/               Java Spring Boot microservice (port 9090)
+├── java_service/               Java compiler microservice, port 9090 (pure Java 17 — no framework)
 │   ├── pom.xml
 │   └── src/
 │
@@ -140,8 +140,8 @@ This starts four services:
 Once the backend is listening on port 8000, open a second terminal:
 
 ```bash
-docker-compose -f docker/docker-compose.yml exec backend python manage.py migrate
-docker-compose -f docker/docker-compose.yml exec backend python manage.py seed_dev_data
+docker-compose -f docker/docker-compose.yml exec django python manage.py migrate
+docker-compose -f docker/docker-compose.yml exec django python manage.py seed_dev_data
 ```
 
 ### 5. Access the application
@@ -181,7 +181,7 @@ python manage.py runserver
 Inside the container:
 
 ```bash
-docker-compose -f docker/docker-compose.yml exec backend pytest
+docker-compose -f docker/docker-compose.yml exec django pytest
 ```
 
 Or locally:
@@ -191,7 +191,7 @@ cd backend
 pytest
 ```
 
-The test suite covers the ML analyzer, SHAP explainer, AES encryption, and REST API endpoints.
+The test suite covers the ML analyzer, explainer, enrichment mapping, AES encryption, and REST API endpoints.
 
 ---
 
@@ -201,7 +201,7 @@ Base URL: `http://localhost:8000/api/v1`
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/health/` | Health check |
+| GET | `/health/` | Health check (`?services=1` also probes the Java/C# services) |
 | GET | `/projects/` | List all projects |
 | POST | `/projects/` | Create a project |
 | GET | `/projects/{id}/` | Project detail |
@@ -211,7 +211,7 @@ Base URL: `http://localhost:8000/api/v1`
 | POST | `/files/{id}/analyze/` | Re-run analysis on a file |
 | GET | `/files/{id}/source/` | Decrypt and return source (debug only) |
 | GET | `/vulnerabilities/{id}/` | Vulnerability detail |
-| GET | `/vulnerabilities/{id}/explanation/` | SHAP/LIME explanation |
+| GET | `/vulnerabilities/{id}/explanation/` | SHAP/LIME-style explanation (illustrative) |
 
 Full API documentation is in [`docs/api_reference.md`](docs/api_reference.md).
 
@@ -246,7 +246,7 @@ Browser
     │  HTTP :8000
     ▼
 Django Backend
-    ├── REST API  →  ML Analyzer  →  SHAP Explainer
+    ├── REST API  →  ML Analyzer  →  Enricher (javac / Roslyn)  →  Explainer (illustrative SHAP/LIME)
     ├── AES-256-GCM Encryption
     ├── PostgreSQL / SQLite
     ├── → Java Service  :9090  (javax.tools javac)
@@ -264,8 +264,11 @@ Django Backend
 | `DEBUG` | No | `True` for development (default: `False`) |
 | `DATABASE_URL` | No | PostgreSQL URL — omit to use SQLite |
 | `ALLOWED_HOSTS` | No | Comma-separated hostnames |
-| `JAVA_SERVICE_HOST` | No | Java service hostname (default: `java`) |
+| `JAVA_SERVICE_HOST` | No | Java service hostname (default: `localhost`; `java` in Docker) |
 | `JAVA_SERVICE_PORT` | No | Java service port (default: `9090`) |
+| `CSHARP_SERVICE_HOST` | No | C# daemon hostname (default: `localhost`; `csharp` in Docker) |
+| `CSHARP_SERVICE_PORT` | No | C# daemon port (default: `9091`) |
+| `MICROSERVICES_ENABLED` | No | `True` merges Java/C# service diagnostics into findings; `False` runs analysis fully locally (default: `True`) |
 | `SEED_DEV_DATA` | No | Set `true` to auto-seed on container start |
 
 See [`.env.example`](.env.example) for the full list.

@@ -1,6 +1,6 @@
 """
-config/urls.py — Root URL Configuration (Phase 2 update)
-==========================================================
+config/urls.py — Root URL Configuration
+==========================================
 Routes:
     /                   → frontend/index.html  (dashboard)
     /review.html        → frontend/review.html (code review editor)

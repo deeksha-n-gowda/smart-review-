@@ -46,10 +46,29 @@ Browser
 - Receives file uploads via REST API
 - Encrypts source code with AES-256-GCM before DB storage
 - Runs Python-based rule engine (`ml/analyzer.py`) for all four languages
-- Generates SHAP/LIME explanations (`ml/explainer.py`)
-- Optionally calls Java service for `.java` compile-time checks
-- Optionally calls C# daemon for Roslyn diagnostics on `.cs` files
+- Merges Java/C# service diagnostics into the findings (`api/enrichment.py`)
+- Generates SHAP/LIME-style explanations (`ml/explainer.py`)
+- Calls Java service for `.java` compile-time checks (when `MICROSERVICES_ENABLED=True`)
+- Calls C# daemon for Roslyn diagnostics on `.cs` files (when `MICROSERVICES_ENABLED=True`)
 - Serves the Vanilla JS frontend from `/frontend/`
+
+### Explainability Note (SHAP / LIME)
+
+The "SHAP" and "LIME" explanations produced by `ml/explainer.py` are
+**illustrative attributions, not a trained model**. There is no training
+data, no fitted estimator, and no `shap`/`lime` library dependency:
+
+- **SHAP-style values** are computed as `feature_base_weight × feature_presence`
+  from a hand-tuned weight table (`FEATURE_BASE_WEIGHTS`) plus deterministic,
+  seeded noise — the same feature-detection regexes that drive the rule
+  engine determine which features are "present".
+- **LIME-style values** are the SHAP-style values with small deterministic
+  jitter, simulating LIME's local-linear approximation.
+- Both are generated on the fly at analysis time and persisted on the
+  `Explanation` model; the UI charts them identically to real attributions.
+
+This keeps the XAI pipeline dependency-free and reproducible while
+demonstrating how attribution output is surfaced in a review UI.
 
 ### Java Microservice (Port 9090)
 - Accepts Java source snippets via `POST /compile`
@@ -71,13 +90,15 @@ Browser
 3. Source code read as UTF-8 string
 4. AES-256-GCM encrypt → store in CodeFile.encrypted_source
 5. CodeAnalyzer.analyze() runs language-specific rules
-6. Each finding → Vulnerability model created in DB
-7. ExplanationGenerator.generate_shap() → Explanation model created
-8. If language == java:  JavaServiceClient.compile_safe() called
-9. If language == csharp: CSharpServiceClient.analyze_safe() called
-10. CodeFile.mark_complete(risk_score, duration_ms)
-11. Project.recalculate_risk_score()
-12. Return CodeFileDetailSerializer response
+6. If MICROSERVICES_ENABLED and language == java/csharp:
+   api/enrichment.py calls the service, maps its diagnostics to
+   findings, merges (local findings win on duplicates), re-sorts,
+   and recomputes the risk score
+7. Each finding (local + merged) → Vulnerability model created in DB
+8. ExplanationGenerator.generate_shap() / generate_lime() → Explanation model created
+9. CodeFile.mark_complete(risk_score, duration_ms)
+10. Project.recalculate_risk_score()
+11. Return CodeFileDetailSerializer response
 ```
 
 ## Security Architecture

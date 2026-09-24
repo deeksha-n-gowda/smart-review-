@@ -17,6 +17,9 @@ All responses are JSON. All UUIDs are version 4.
   "database": "connected"
 }
 ```
+With `?services=1`, the response additionally includes a `"microservices"`
+object probing the Java and C# services (opt-in — the default response stays
+fast for the Docker healthcheck).
 
 ---
 
@@ -132,7 +135,8 @@ Full vulnerability detail.
 ```
 
 ### GET /vulnerabilities/{uuid}/explanation/
-SHAP explanation for a vulnerability.
+SHAP-style explanation for a vulnerability (illustrative attribution —
+generated from a built-in rule-weight model, not a trained estimator).
 ```json
 {
   "id": "uuid",
