@@ -3,7 +3,7 @@ api/urls.py — REST API URL Routes
 ===================================
 All routes are prefixed with /api/v1/ from the root urls.py.
 
-Endpoints (to be fully implemented in Phase 4):
+Endpoints:
     POST   /api/v1/projects/                         Create a new project
     GET    /api/v1/projects/                         List all projects
     GET    /api/v1/projects/<uuid>/                  Get project details + summary

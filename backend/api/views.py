@@ -1,8 +1,6 @@
 """
-api/views.py — REST API Views (Phase 4 — Full Implementation)
-==============================================================
-All endpoints are now fully implemented.
-
+api/views.py — REST API Views
+==============================
 Endpoints:
     GET  /api/v1/health/                              Health check
     GET  /api/v1/projects/                            List projects
@@ -53,6 +51,12 @@ def health_check(request):
     """
     GET /api/v1/health/
     Returns backend service status. Used by Docker health checks and frontend.
+
+    Query params:
+        services=1 — also probe the Java and C# microservices in parallel.
+                     Opt-in because it can take a few seconds when a service
+                     is down; the default response stays fast for the
+                     Docker healthcheck (interval 30s, timeout 10s).
     """
     db_ok = True
     try:
@@ -60,13 +64,23 @@ def health_check(request):
     except Exception:
         db_ok = False
 
-    return Response({
+    payload = {
         "status":   "ok" if db_ok else "degraded",
         "service":  "AI Code Review Assistant",
         "version":  "1.0.0",
         "database": "connected" if db_ok else "unreachable",
         "debug":    settings.DEBUG,
-    }, status=status.HTTP_200_OK if db_ok else status.HTTP_503_SERVICE_UNAVAILABLE)
+    }
+
+    if request.query_params.get("services") in ("1", "true", "yes"):
+        try:
+            from .microservice_client import check_all_services
+            payload["microservices"] = check_all_services()
+        except Exception as svc_err:
+            logger.warning("Microservice health probe failed: %s", svc_err)
+            payload["microservices"] = {"error": str(svc_err)}
+
+    return Response(payload, status=status.HTTP_200_OK if db_ok else status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 # ─── Project Views ─────────────────────────────────────────────────────────────
@@ -177,7 +191,8 @@ class CodeFileUploadView(APIView):
             uploaded_file.name, len(source_code), language, project.name,
         )
 
-        # Run analysis synchronously (Phase 5 will optionally offload to Celery)
+        # Run analysis synchronously (analysis is fast — rule engine + optional
+        # microservice enrichment; async offload is not needed)
         self._run_analysis(code_file, source_code, language)
 
         return Response(
@@ -197,6 +212,13 @@ class CodeFileUploadView(APIView):
             analyzer  = CodeAnalyzer(language)
             result    = analyzer.analyze(source_code)
             source_lines = source_code.splitlines()
+
+            # Merge microservice findings (javac / Roslyn) into the local
+            # result. Never raises; no-ops when services are disabled.
+            from .enrichment import enrich_analysis_result
+            result = enrich_analysis_result(
+                language, source_code, code_file.filename, result, analyzer,
+            )
 
             gen = ExplanationGenerator()
 
@@ -220,16 +242,21 @@ class CodeFileUploadView(APIView):
                         owasp_category   = finding.get("owasp_category", ""),
                     )
 
-                    # Generate SHAP explanation
+                    # Generate SHAP + LIME explanations
                     try:
                         shap_data = gen.generate_shap(finding, source_lines)
                         summary   = gen.generate_summary(finding, shap_data)
                         top_name, top_importance = gen.generate_top_feature(shap_data)
 
+                        # LIME-style data rides along under a separate key so
+                        # the top-level SHAP schema stays unchanged.
+                        explanation_payload = dict(shap_data)
+                        explanation_payload["lime"] = gen.generate_lime(finding, source_lines)
+
                         exp = Explanation(
                             vulnerability         = vuln,
                             method                = ExplanationType.SHAP,
-                            explanation_data      = shap_data,
+                            explanation_data      = explanation_payload,
                             summary               = summary,
                             top_feature_name      = top_name,
                             top_feature_importance= top_importance,
@@ -400,10 +427,15 @@ class ExplanationDetailView(APIView):
             summary                 = gen.generate_summary(finding, shap_data)
             top_name, top_importance = gen.generate_top_feature(shap_data)
 
+            # LIME-style data rides along under a separate key so the
+            # top-level SHAP schema stays unchanged.
+            explanation_payload = dict(shap_data)
+            explanation_payload["lime"] = gen.generate_lime(finding, source_lines)
+
             exp = Explanation.objects.create(
                 vulnerability          = vuln,
                 method                 = ExplanationType.SHAP,
-                explanation_data       = shap_data,
+                explanation_data       = explanation_payload,
                 summary                = summary,
                 top_feature_name       = top_name,
                 top_feature_importance = top_importance,

@@ -8,7 +8,7 @@ The Django backend is the orchestrator — it calls these services
 after its own Python-based analysis to enrich the results with
 compile-time errors and Roslyn diagnostics.
 
-Usage (from views.py or a Celery task):
+Usage (from views.py):
 
     from api.microservice_client import JavaServiceClient, CSharpServiceClient
 
@@ -271,7 +271,10 @@ def check_all_services() -> dict:
     """
     Checks the health of all microservices in parallel.
     Returns a dict mapping service name → health response.
-    Used by the health_check view and the admin dashboard.
+    Used by the health_check view (?services=1).
+
+    Never raises: a service that fails or times out is reported as
+    "error"/"timeout" while the others still return their real status.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -283,11 +286,26 @@ def check_all_services() -> dict:
     results = {}
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {executor.submit(fn): name for name, fn in checks.items()}
-        for future in as_completed(futures, timeout=5):
-            name = futures[future]
-            try:
-                results[name] = future.result()
-            except Exception as e:
-                results[name] = {"status": "error", "error": str(e)}
+        try:
+            for future in as_completed(futures, timeout=5):
+                name = futures[future]
+                try:
+                    results[name] = future.result()
+                except Exception as e:
+                    results[name] = {"status": "error", "error": str(e)}
+        except TimeoutError:
+            # Partial results are still useful; the remaining futures are
+            # collected below once the pool has drained.
+            pass
+
+    # The pool has drained — pick up anything that finished after the
+    # as_completed deadline, and mark the rest as timed out.
+    for future, name in futures.items():
+        if name in results:
+            continue
+        try:
+            results[name] = future.result(timeout=0)
+        except Exception as e:
+            results[name] = {"status": "timeout", "error": f"no response within 5s ({e})"}
 
     return results

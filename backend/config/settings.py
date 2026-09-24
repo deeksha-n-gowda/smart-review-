@@ -241,6 +241,18 @@ JAVA_SERVICE_URL = f"http://{JAVA_SERVICE_HOST}:{JAVA_SERVICE_PORT}"
 
 CSHARP_PIPE_NAME = os.environ.get("CSHARP_PIPE_NAME", "CodeReviewDaemonPipe")
 
+# HTTP mode for the C# analysis daemon (used by api/microservice_client.py).
+# In Docker Compose the daemon runs as service "csharp" on the compose network.
+CSHARP_SERVICE_HOST = os.environ.get("CSHARP_SERVICE_HOST", "localhost")
+CSHARP_SERVICE_PORT = int(os.environ.get("CSHARP_SERVICE_PORT", "9091"))
+CSHARP_SERVICE_URL  = f"http://{CSHARP_SERVICE_HOST}:{CSHARP_SERVICE_PORT}"
+
+# Master switch for calling the Java / C# microservices during analysis.
+# When False the backend runs purely on the local Python rule engine —
+# no network calls are made. Set to "False" in tests (see conftest.py) and
+# for local runs without the Java/C# services up.
+MICROSERVICES_ENABLED = os.environ.get("MICROSERVICES_ENABLED", "True").lower() in ("true", "1", "yes")
+
 
 # ---------------------------------------------------------------------------
 # Code Analysis Settings

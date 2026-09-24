@@ -21,8 +21,6 @@
 #   Java health: http://localhost:9090/health
 #   C# health:   http://localhost:9091/health
 
-version: "3.9"
-
 # ── Shared environment for all services ────────────────────────────────────────
 x-common-env: &common-env
   TZ: UTC
@@ -73,6 +71,9 @@ services:
       JAVA_SERVICE_HOST:      java
       JAVA_SERVICE_PORT:      9090
       CSHARP_PIPE_NAME:       CodeReviewDaemonPipe
+      CSHARP_SERVICE_HOST:    csharp
+      CSHARP_SERVICE_PORT:    9091
+      MICROSERVICES_ENABLED:  "true"
       CORS_ALLOWED_ORIGINS:   http://localhost:3000,http://localhost:8000
       RUN_MIGRATIONS:         "true"
       SEED_DEV_DATA:          ${SEED_DEV_DATA:-false}

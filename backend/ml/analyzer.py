@@ -43,6 +43,41 @@ SEVERITY_WEIGHTS = {
 MAX_RISK_FROM_SINGLE_VULN = 0.35
 
 
+def compute_risk_score(findings: list) -> float:
+    """
+    Computes a risk score in [0.0, 1.0] from a list of finding dicts.
+
+    Module-level so other pipeline stages (e.g. api/enrichment.py, which merges
+    microservice findings into local results) can recompute the score without
+    instantiating a CodeAnalyzer.
+
+    Formula:
+      - Each finding contributes: weight * confidence * diminishing_factor
+      - Diminishing factor: 1 / sqrt(rank+1) so the 1st critical matters most
+      - Total is clamped to [0, 0.98]
+
+    A file with one critical issue scores ~0.35.
+    A file with three critical issues scores ~0.60.
+    A file with 10+ issues across all severities approaches 0.95.
+    """
+    if not findings:
+        return 0.0
+
+    import math
+    total = 0.0
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    sorted_f  = sorted(findings, key=lambda f: sev_order.get(f["severity"], 5))
+
+    for rank, finding in enumerate(sorted_f):
+        weight      = SEVERITY_WEIGHTS.get(finding["severity"], 0.1)
+        confidence  = finding.get("confidence_score", 0.8)
+        diminishing = 1.0 / math.sqrt(rank + 1)
+        contribution = weight * confidence * diminishing * MAX_RISK_FROM_SINGLE_VULN
+        total += contribution
+
+    return round(min(total, 0.98), 4)  # Cap at 0.98 — 1.0 reserved for confirmed breaches
+
+
 class CodeAnalyzer:
     """
     Language-agnostic analysis orchestrator.
@@ -285,31 +320,15 @@ class CodeAnalyzer:
         """
         Computes a risk score in [0.0, 1.0] from the finding list.
 
-        Formula:
-          - Each finding contributes: weight * confidence * diminishing_factor
-          - Diminishing factor: 1 / sqrt(rank+1) so the 1st critical matters most
-          - Total is clamped to [0, 1]
+        Thin wrapper around the module-level compute_risk_score() so
+        api/enrichment.py can recompute scores after merging microservice
+        findings without instantiating a CodeAnalyzer.
 
         A file with one critical issue scores ~0.35.
         A file with three critical issues scores ~0.60.
         A file with 10+ issues across all severities approaches 0.95.
         """
-        if not findings:
-            return 0.0
-
-        import math
-        total = 0.0
-        sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-        sorted_f  = sorted(findings, key=lambda f: sev_order.get(f["severity"], 5))
-
-        for rank, finding in enumerate(sorted_f):
-            weight      = SEVERITY_WEIGHTS.get(finding["severity"], 0.1)
-            confidence  = finding.get("confidence_score", 0.8)
-            diminishing = 1.0 / math.sqrt(rank + 1)
-            contribution = weight * confidence * diminishing * MAX_RISK_FROM_SINGLE_VULN
-            total += contribution
-
-        return round(min(total, 0.98), 4)  # Cap at 0.98 — 1.0 reserved for confirmed breaches
+        return compute_risk_score(findings)
 
     # ── Finding Construction ──────────────────────────────────────────────
 

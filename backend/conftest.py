@@ -70,6 +70,10 @@ def pytest_configure(config):
     # Silence migration output during test DB creation
     django_settings.MIGRATION_MODULES = {}
 
+    # Never call the Java/C# microservices from tests — analysis must be
+    # fully local and deterministic (see api/enrichment.py).
+    django_settings.MICROSERVICES_ENABLED = False
+
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
