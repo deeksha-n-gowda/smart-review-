@@ -43,6 +43,57 @@
       font-family: var(--font-mono);
       color: var(--text-muted);
     }
+
+    /* ── Print / PDF export ─────────────────────────────────────────────
+       #print-report is injected by review.js exportReport(). While
+       body.printing, only the report is visible in print output; the app
+       shell and toasts are hidden. On screen the report never shows. */
+    #print-report { display: none; }
+
+    @media print {
+      body { overflow: visible !important; opacity: 1 !important; }
+
+      body.printing .app-shell,
+      body.printing .toast-container,
+      body.printing nav,
+      body.printing .vuln-sidebar,
+      body.printing .editor-pane,
+      body.printing .analysis-panel { display: none !important; }
+
+      body.printing #print-report { display: block !important; }
+
+      /* Safety: if printing without the report (Ctrl+P), keep layout sane */
+      body:not(.printing) .app-shell { overflow: visible !important; }
+    }
+
+    /* Report-only styles inside #print-report */
+    #print-report .r-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      page-break-inside: avoid;
+    }
+    #print-report .r-item__head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 13px;
+    }
+    #print-report .r-sev {
+      display: inline-block;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-family: inherit;
+    }
+    #print-report .r-meta { color: #666; font-size: 11px; }
+    #print-report .r-desc { font-size: 12px; color: #333; margin: 6px 0 0; }
+    #print-report .r-rec  { font-size: 12px; color: #333; margin: 4px 0 0; }
   </style>
 </head>
 <body>
@@ -97,8 +148,8 @@
         ↺ Re-analyze
       </button>
 
-      <!-- Export button (Phase 4) -->
-      <button class="btn btn-ghost btn-sm" id="export-btn" title="Export analysis report (PDF) — Phase 4">
+      <!-- Export button — opens the print dialog (Save as PDF) -->
+      <button class="btn btn-ghost btn-sm" id="export-btn" title="Export analysis report (opens print dialog — choose Save as PDF)">
         ⬇ Export
       </button>
     </div>
@@ -139,7 +190,7 @@
  * 1. Marks body as ready (fades in).
  * 2. Rewires <main> so review.js can inject its layout into it.
  * 3. Imports and initialises the ReviewPage controller.
- * 4. Wires up the topbar controls (re-analyze, export, breadcrumb).
+ * 4. Wires up the topbar controls (re-analyze, export/print-to-PDF, breadcrumb).
  *
  * The ReviewPage class (in review.js) does all the heavy lifting:
  * fetching file data, rendering the editor, building the panels, etc.
@@ -271,10 +322,16 @@ document.getElementById("reanalyze-btn")?.addEventListener("click", async () => 
   }
 });
 
-// ── Topbar: Export button (Phase 4 stub) ─────────────────────────────────────
+// ── Topbar: Export button (print-to-PDF) ───────────────────────────────────
+// review.js exposes window.reviewPage; exportReport() builds a print-only
+// report node and calls window.print() — the user picks "Save as PDF".
 
 document.getElementById("export-btn")?.addEventListener("click", () => {
-  Toast.info("PDF export will be available in Phase 4.");
+  if (window.reviewPage?.exportReport) {
+    window.reviewPage.exportReport();
+  } else {
+    Toast.warning("Review page is still loading — try again in a moment.");
+  }
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────

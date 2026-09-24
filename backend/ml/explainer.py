@@ -178,6 +178,9 @@ FEATURE_BASE_WEIGHTS = {
     "untrusted_source":         +0.25,
     "untrusted_input":          +0.22,
     "data_origin":              +0.18,
+    "compile_error":            +0.45,   # javac / Roslyn reported an error at this line
+    "compiler_warning":         +0.15,   # javac / Roslyn reported a warning at this line
+    "roslyn_rule_match":        +0.30,   # C# daemon's own rule engine matched this line
 
     # Decreases risk (negative SHAP = good thing to have)
     "parameterized_query":      -0.10,
@@ -427,6 +430,9 @@ class ExplanationGenerator:
         e.g. "sql_string_concat" → "SQL string concatenation detected"
         """
         DISPLAY_NAMES = {
+            "compile_error":             "Compiler reported an error at this line",
+            "compiler_warning":          "Compiler reported a warning at this line",
+            "roslyn_rule_match":         "Roslyn rule engine matched this line",
             "sql_string_concat":         "SQL string concatenation detected",
             "sql_format_string":         "SQL built with .format()",
             "fstring_in_sql":            "F-string used inside SQL query",

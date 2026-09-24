@@ -141,7 +141,7 @@ class ReviewPage {
     this.editorPaneEl = this._createElement("div", "editor-pane");
     const editorWrap = this._createElement("div", "");
     editorWrap.style.cssText = "display:flex; flex-direction:column; height:100%;";
-    // File tabs (we just show one tab for now; Phase 4 adds multi-file)
+    // File tabs (we just show one tab for now; multi-file is future work)
     this.fileTabsEl = this._createElement("div", "file-tabs");
     this.fileTabsEl.innerHTML = `<div class="file-tab active" id="current-file-tab">
       <span class="file-tab__indicator" style="background: var(--amber-bright);"></span>
@@ -550,15 +550,18 @@ class ReviewPage {
       return;
     }
 
-    // Build a synthetic LIME view from SHAP data for demo purposes
-    const shapData = explanation.explanation_data;
-    const limeData = {
+    // Prefer the server-generated LIME data (explanation_data.lime).
+    // Older records may not have it — fall back to a deterministic
+    // derivation from the SHAP values (no Math.random: the same finding
+    // always renders identical weights).
+    const shapData = explanation.explanation_data || {};
+    const limeData = shapData.lime || {
       method: "lime",
-      prediction_proba: [1 - (shapData?.prediction || 0.5), shapData?.prediction || 0.5],
-      intercept: shapData?.base_value || 0.3,
-      features: (shapData?.features || []).map(f => ({
+      prediction_proba: [1 - (shapData.prediction || 0.5), shapData.prediction || 0.5],
+      intercept: shapData.base_value || 0.3,
+      features: (shapData.features || []).map(f => ({
         name: f.name,
-        weight: f.shap_value * 0.9 + (Math.random() - 0.5) * 0.05,
+        weight: Math.round(f.shap_value * 0.9 * 10000) / 10000,
         display: f.display,
       })),
     };
@@ -576,9 +579,10 @@ class ReviewPage {
         <div class="panel-section">
           <div class="panel-section__label">About LIME</div>
           <p class="vuln-description font-serif" style="font-size:12px;">
-            LIME explains this specific prediction by perturbing the input features locally
-            and fitting a simpler linear model. The weights show each feature's contribution
-            to <em>this individual decision</em>, independent of the global model behavior.
+            LIME-style local weights approximate how each feature contributes to
+            <em>this individual decision</em>. (In CodeLens these weights are
+            generated from the same rule-weight model as the SHAP tab with
+            LIME-style local jitter — illustrative, not a fitted surrogate model.)
           </p>
         </div>
       </div>
@@ -678,6 +682,159 @@ class ReviewPage {
     tabs[next].click();
   }
 
+  // ── PDF Export (print-to-PDF) ─────────────────────────────────────────
+
+  /**
+   * Builds a standalone report DOM node (#print-report), shows only it via
+   * the body.printing class + @media print CSS, then opens the browser
+   * print dialog — from which the user picks "Save as PDF".
+   * Cleans up the node after the print dialog closes (afterprint).
+   */
+  async exportReport() {
+    const data = this.fileData;
+    if (!data) {
+      Toast.warning("No file loaded — nothing to export.");
+      return;
+    }
+
+    const btn = document.getElementById("export-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "⬇ Preparing…"; }
+
+    try {
+      const vulns = data.vulnerabilities || [];
+
+      // The list payload omits description/recommendation. For small reports
+      // fetch full details so the PDF is complete; the 15-finding cap keeps
+      // us well under the anon API throttle (60 req/min).
+      const details = new Map();
+      if (vulns.length > 0 && vulns.length <= 15) {
+        const fetched = await Promise.all(
+          vulns.map(v => api.getVulnerability(v.id).catch(() => null)),
+        );
+        fetched.forEach(f => { if (f && f.id) details.set(f.id, f); });
+      }
+
+      const sevOrder = ["critical", "high", "medium", "low", "info"];
+      const sevColor = {
+        critical: "#f85149", high: "#db6d28", medium: "#d29922",
+        low: "#58a6ff", info: "#8b949e",
+      };
+      const counts = {};
+      sevOrder.forEach(s => { counts[s] = vulns.filter(v => v.severity === s).length; });
+
+      const pct = data.risk_score != null ? Math.round(data.risk_score * 100) : null;
+      const esc = s => this._esc(s);
+
+      const sorted = [...vulns].sort((a, b) =>
+        (sevOrder.indexOf(a.severity) - sevOrder.indexOf(b.severity)) ||
+        ((a.line_start || 0) - (b.line_start || 0)),
+      );
+
+      const rows = sorted.map(v => {
+        const full = details.get(v.id);
+        const sev  = sevColor[v.severity] || "#8b949e";
+        const detailHtml = full
+          ? `<p class="r-desc">${esc(full.description)}</p>` +
+            (full.recommendation
+              ? `<p class="r-rec"><strong>Recommendation:</strong> ${esc(full.recommendation)}</p>`
+              : "")
+          : "";
+        return `
+          <div class="r-item">
+            <div class="r-item__head">
+              <span class="r-sev" style="background:${sev}">${esc((v.severity || "").toUpperCase())}</span>
+              <strong>${esc(v.title)}</strong>
+              <span class="r-meta">line ${esc(v.line_start)}${v.line_end ? "–" + esc(v.line_end) : ""} · ${esc(v.rule_id || "")}${v.cwe_id ? " · " + esc(v.cwe_id) : ""}</span>
+            </div>
+            ${detailHtml}
+          </div>`;
+      }).join("");
+
+      const summaryRows = sevOrder
+        .filter(s => counts[s] > 0)
+        .map(s => `<tr><td><span class="r-sev" style="background:${sevColor[s]}">${s.toUpperCase()}</span></td><td>${counts[s]}</td></tr>`)
+        .join("") || `<tr><td colspan="2">No findings — clean file.</td></tr>`;
+
+      const html = `
+        <div style="font-family:Georgia,'Times New Roman',serif; color:#111; padding:24px; max-width:800px; margin:0 auto;">
+          <div style="border-bottom:3px solid #111; padding-bottom:12px; margin-bottom:16px;">
+            <div style="font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#555;">CodeLens — AI Code Review Assistant</div>
+            <h1 style="font-size:24px; margin:6px 0 4px;">Analysis Report</h1>
+            <div style="font-size:13px; color:#333;">
+              <strong>File:</strong> ${esc(data.filename)} &nbsp;·&nbsp;
+              <strong>Language:</strong> ${esc(data.language)} &nbsp;·&nbsp;
+              <strong>Status:</strong> ${esc(data.status)}<br/>
+              <strong>Generated:</strong> ${esc(new Date().toLocaleString())}
+            </div>
+          </div>
+
+          <table style="width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px;">
+            <tr>
+              <td style="border:1px solid #ccc; padding:8px; width:33%;">
+                <div style="font-size:11px; text-transform:uppercase; color:#555;">Risk Score</div>
+                <div style="font-size:22px; font-weight:bold;">${pct != null ? pct + "%" : "—"}</div>
+              </td>
+              <td style="border:1px solid #ccc; padding:8px; width:33%;">
+                <div style="font-size:11px; text-transform:uppercase; color:#555;">Total Findings</div>
+                <div style="font-size:22px; font-weight:bold;">${vulns.length}</div>
+              </td>
+              <td style="border:1px solid #ccc; padding:8px; width:34%;">
+                <div style="font-size:11px; text-transform:uppercase; color:#555;">By Severity</div>
+                ${sevOrder.filter(s => counts[s]).map(s =>
+                  `<span style="color:${sevColor[s]}; font-weight:bold;">${counts[s]}</span> ${s} `
+                ).join("· ") || "—"}
+              </td>
+            </tr>
+          </table>
+
+          <h2 style="font-size:16px; margin:18px 0 8px;">Severity Summary</h2>
+          <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:18px;">
+            <thead>
+              <tr style="background:#f0f0f0;">
+                <th style="border:1px solid #ccc; padding:6px; text-align:left;">Severity</th>
+                <th style="border:1px solid #ccc; padding:6px; text-align:left;">Count</th>
+              </tr>
+            </thead>
+            <tbody>${summaryRows}</tbody>
+          </table>
+
+          <h2 style="font-size:16px; margin:18px 0 8px;">Findings${details.size < vulns.length && vulns.length ? " (summary only — full descriptions are included for reports of ≤15 findings)" : ""}</h2>
+          ${rows || `<p style="font-size:13px; color:#555;">No findings.</p>`}
+
+          <div style="margin-top:24px; padding-top:10px; border-top:1px solid #ccc; font-size:11px; color:#777;">
+            Generated by CodeLens. Explanations are illustrative attributions from a rule-weight model.
+            Exports via the browser print dialog — choose "Save as PDF".
+          </div>
+        </div>`;
+
+      // Inject (or refresh) the print-only report node
+      let reportEl = document.getElementById("print-report");
+      if (!reportEl) {
+        reportEl = document.createElement("div");
+        reportEl.id = "print-report";
+        document.body.appendChild(reportEl);
+      }
+      reportEl.innerHTML = html;
+
+      // Hide the app, print only the report, then clean up
+      const cleanup = () => {
+        document.body.classList.remove("printing");
+        reportEl.remove();
+        window.removeEventListener("afterprint", cleanup);
+      };
+      window.addEventListener("afterprint", cleanup);
+      document.body.classList.add("printing");
+      window.print();
+
+    } catch (err) {
+      console.error("Export failed:", err);
+      document.body.classList.remove("printing");
+      Toast.error(`Export failed: ${err.message}`);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "⬇ Export"; }
+    }
+  }
+
   // ── Utilities ─────────────────────────────────────────────────────────
 
   _showEditorEmpty(message) {
@@ -721,6 +878,8 @@ class ReviewPage {
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
 const reviewPage = new ReviewPage();
+// Exposed so review.html's topbar controls (Export) can call into it.
+window.reviewPage = reviewPage;
 reviewPage.init().catch(err => {
   console.error("ReviewPage failed to initialize:", err);
 });
