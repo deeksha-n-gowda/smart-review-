@@ -250,7 +250,7 @@ Base URL: `https://smart-review-django.onrender.com/api/v1` (locally: `http://lo
 | POST | `/projects/{id}/upload/` | Upload file for analysis |
 | GET | `/files/{id}/` | File detail with vulnerabilities |
 | POST | `/files/{id}/analyze/` | Re-run analysis on a file |
-| GET | `/files/{id}/source/` | Decrypt and return source (debug only) |
+| GET | `/files/{id}/source/` | Decrypt and return source |
 | GET | `/vulnerabilities/{id}/` | Vulnerability detail |
 | GET | `/vulnerabilities/{id}/explanation/` | SHAP/LIME-style explanation (illustrative) |
 

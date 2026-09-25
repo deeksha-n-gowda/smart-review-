@@ -10,7 +10,7 @@ Endpoints:
     POST /api/v1/projects/<uuid>/upload/              Upload + encrypt + analyze a file
     GET  /api/v1/files/<uuid>/                        File detail + vulnerabilities
     POST /api/v1/files/<uuid>/analyze/                (Re-)trigger analysis
-    GET  /api/v1/files/<uuid>/source/                 Decrypted source (DEBUG only)
+    GET  /api/v1/files/<uuid>/source/                 Decrypted source
     GET  /api/v1/vulnerabilities/<uuid>/              Vulnerability detail
     GET  /api/v1/vulnerabilities/<uuid>/explanation/  XAI explanation
 """
@@ -344,16 +344,15 @@ class TriggerAnalysisView(APIView):
 class CodeFileSourceView(APIView):
     """
     GET /api/v1/files/<uuid>/source/
-    Returns the decrypted source code. Only available when DEBUG=True.
+    Returns the decrypted source code.
+
+    Available in production too — the review page loads file content through
+    this endpoint. The rest of the API is equally open (AllowAny + UUID PKs
+    as the anti-enumeration control), so gating this one endpoint behind
+    DEBUG would only break the UI without meaningfully improving security.
     """
 
     def get(self, request, pk):
-        if not settings.DEBUG:
-            return Response(
-                {"detail": "Source view is only available in DEBUG mode."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         try:
             code_file = CodeFile.objects.get(pk=pk)
         except CodeFile.DoesNotExist:

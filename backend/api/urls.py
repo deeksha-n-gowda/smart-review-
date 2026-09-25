@@ -12,7 +12,7 @@ Endpoints:
     POST   /api/v1/projects/<uuid>/upload/           Upload a code file for analysis
     GET    /api/v1/files/<uuid>/                     Get file details + vulnerabilities
     POST   /api/v1/files/<uuid>/analyze/             Trigger analysis on a file
-    GET    /api/v1/files/<uuid>/source/              Get decrypted source (dev only)
+    GET    /api/v1/files/<uuid>/source/              Get decrypted source
 
     GET    /api/v1/vulnerabilities/<uuid>/           Get a single vulnerability
     GET    /api/v1/vulnerabilities/<uuid>/explanation/ Get XAI explanation

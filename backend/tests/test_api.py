@@ -398,17 +398,25 @@ class TestFileSource(APITestBase):
         )
         self.fid = self.json(upload_resp)["id"]
 
-    def test_source_returns_200_in_debug(self):
-        # DEBUG=True in test settings → should return 200
+    def test_source_returns_200(self):
         resp = self.get(f"/api/v1/files/{self.fid}/source/")
-        self.assertIn(resp.status_code, (200, 403))
+        self.assertEqual(resp.status_code, 200)
 
     def test_source_contains_source_field(self):
         resp = self.get(f"/api/v1/files/{self.fid}/source/")
-        if resp.status_code == 200:
-            data = self.json(resp)
-            self.assertIn("source", data)
-            self.assertIn("def add", data["source"])
+        self.assertEqual(resp.status_code, 200)
+        data = self.json(resp)
+        self.assertIn("source", data)
+        self.assertIn("def add", data["source"])
+
+    def test_source_available_when_debug_false(self):
+        # Regression test: production runs with DEBUG=False. The review page
+        # loads file content through this endpoint (Promise.all in review.js),
+        # so a 403 here leaves the UI stuck on "Loading…".
+        with self.settings(DEBUG=False):
+            resp = self.get(f"/api/v1/files/{self.fid}/source/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("def add", self.json(resp)["source"])
 
 
 # ---------------------------------------------------------------------------
