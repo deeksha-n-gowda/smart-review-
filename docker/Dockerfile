@@ -69,35 +69,42 @@ RUN mkdir -p /app/staticfiles /app/mediafiles && \
 # Switch to non-root user
 USER appuser
 
-# Collect static files
-RUN python manage.py collectstatic --noinput --clear 2>/dev/null || true
-
 # Environment defaults (override via docker-compose or --env-file)
 ENV DJANGO_SETTINGS_MODULE=config.settings
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUTF8=1
+# Keep collectstatic/media output inside /app. The bare settings values would
+# resolve to /staticfiles and /mediafiles (root-owned → collectstatic failed
+# silently, and the compose media volume never received uploads).
+ENV STATIC_ROOT=/app/staticfiles
+ENV MEDIA_ROOT=/app/mediafiles
 ENV PORT=8000
+
+# Collect static files — strict: a silent failure here means no admin CSS in
+# production.
+RUN python manage.py collectstatic --noinput --clear
 
 # Expose Django port
 EXPOSE 8000
 
-# Health check — Django's health endpoint
+# Health check — $PORT-aware for Render's dynamic port
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/api/v1/health/ || exit 1
 
 # Entrypoint script handles migrations + gunicorn startup
 USER root
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && chown appuser:appgroup /entrypoint.sh
 USER appuser
-# Note: chown needs to happen as root before USER appuser — handled above
 
-# Default command: run via gunicorn with 4 workers
-# Use entrypoint.sh to run migrations first
+# Shell form (not JSON) so $PORT / $GUNICORN_WORKERS expand at container start:
+# Render assigns a dynamic port; local runs and compose fall back to the
+# Dockerfile ENV PORT=8000. entrypoint.sh execs this via `sh -c`.
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["gunicorn", "config.wsgi:application", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "4", \
-     "--timeout", "120", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+CMD gunicorn config.wsgi:application \
+    --bind 0.0.0.0:${PORT:-8000} \
+    --workers ${GUNICORN_WORKERS:-4} \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile -

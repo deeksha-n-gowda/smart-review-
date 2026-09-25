@@ -52,7 +52,8 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true
 EXPOSE 9091
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:9091/health || exit 1
+    CMD curl -f http://localhost:${PORT:-9091}/health || exit 1
 
-ENTRYPOINT ["dotnet", "CodeReviewDaemon.dll", "--mode", "http"]
-CMD ["--port", "9091"]
+# Shell form so $PORT wins (Render assigns a dynamic port); falls back to
+# CSHARP_PORT for Docker Compose and plain `docker run`.
+ENTRYPOINT ["sh", "-c", "exec dotnet CodeReviewDaemon.dll --mode http --port ${PORT:-$CSHARP_PORT}"]

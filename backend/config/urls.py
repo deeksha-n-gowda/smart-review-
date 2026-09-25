@@ -22,7 +22,25 @@ from django.conf.urls.static import static
 from django.views.static import serve
 from django.http import HttpResponse, Http404
 
-FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+def _find_frontend_dir() -> Path:
+    """Locate the frontend/ directory across local and container layouts.
+
+    Local checkout:  <repo>/backend/config/urls.py  → <repo>/frontend
+    Docker image:    /app/config/urls.py            → /app/frontend
+                     (Dockerfile: COPY frontend/ /app/frontend/)
+    """
+    candidates = [
+        Path(settings.BASE_DIR).parent / "frontend",  # repo checkout
+        Path(settings.BASE_DIR) / "frontend",         # container (/app/frontend)
+        Path(__file__).resolve().parents[2] / "frontend",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
+FRONTEND_DIR = _find_frontend_dir()
 
 
 def _frontend_file(filename):

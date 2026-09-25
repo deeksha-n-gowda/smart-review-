@@ -61,6 +61,8 @@ EXPOSE 9090
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:9090/health || exit 1
+    CMD curl -f http://localhost:${PORT:-9090}/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar $JAVA_SERVICE_PORT"]
+# $PORT takes precedence (Render assigns a dynamic port); falls back to
+# JAVA_SERVICE_PORT for Docker Compose and plain `docker run`.
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar ${PORT:-$JAVA_SERVICE_PORT}"]

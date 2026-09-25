@@ -59,11 +59,19 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     echo "[entrypoint] Migrations complete."
 fi
 
-# ── Seed development data ─────────────────────────────────────────────────────
+# ── Seed development data (once — skipped when data already exists) ──────────
 SEED_DEV_DATA="${SEED_DEV_DATA:-false}"
 if [ "$SEED_DEV_DATA" = "true" ]; then
-    echo "[entrypoint] Seeding development data..."
-    python manage.py seed_dev_data 2>/dev/null || echo "[entrypoint] Warning: seed_dev_data skipped (data may already exist)."
+    # Exit 0 = database has no projects (seed it); exit 1 = data exists (skip).
+    if python manage.py shell -c \
+        "from core.models import Project; import sys; sys.exit(1 if Project.objects.exists() else 0)" \
+        >/dev/null 2>&1; then
+        echo "[entrypoint] Seeding development data..."
+        python manage.py seed_dev_data || \
+            echo "[entrypoint] Warning: seed_dev_data failed (continuing)."
+    else
+        echo "[entrypoint] Projects already exist — skipping seed."
+    fi
 fi
 
 # ── Create Django superuser if env vars are set ───────────────────────────────
