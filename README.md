@@ -199,7 +199,7 @@ The blueprint provisions four resources:
 
 ### Redeploying
 
-Push to `main` on GitHub — Render auto-syncs the blueprint on every push.
+Push to `main` on GitHub — Render auto-syncs the blueprint on every push (webhook configured in repo settings). If a push ever doesn't trigger a deploy, run it manually in the Render dashboard: **smart-review-django → Manual Deploy → Deploy latest commit**.
 
 ### Secrets
 
