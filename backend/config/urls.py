@@ -6,10 +6,12 @@ Routes:
     /review.html        → frontend/review.html (code review editor)
     /api/v1/            → REST API (api app)
     /admin/             → Django admin
-    /css|js|assets/...  → Serves frontend static sub-files in dev
+    /css|js|assets/...  → Serves frontend sub-files (all environments)
+    /media/...          → Serves uploaded files (all environments)
 
-In production, nginx serves /frontend/ as static files and only
-proxies /api/v1/ and /admin/ to gunicorn.
+There is no reverse proxy in this deployment: Django (gunicorn, with
+WhiteNoise for /static/) is the single public web server, so the frontend
+and media routes are registered regardless of DEBUG.
 """
 
 from pathlib import Path
@@ -53,16 +55,20 @@ urlpatterns = [
     # Frontend HTML pages (served from /frontend/ directory)
     path("",            _frontend_file("index.html"),  name="home"),
     path("review.html", _frontend_file("review.html"), name="review"),
+
+    # Frontend assets and uploads — served in every environment (no nginx in
+    # front of gunicorn; WhiteNoise handles /static/ when DEBUG=False).
+    re_path(
+        r"^(?P<path>(?:css|js|assets)/.+)$",
+        serve,
+        {"document_root": str(FRONTEND_DIR)},
+    ),
+    re_path(
+        r"^media/(?P<path>.+)$",
+        serve,
+        {"document_root": str(settings.MEDIA_ROOT)},
+    ),
 ]
 
-# Development: serve /frontend/css/, /frontend/js/, /frontend/assets/
 if settings.DEBUG:
-    urlpatterns += [
-        re_path(
-            r"^(?P<path>(?:css|js|assets)/.+)$",
-            serve,
-            {"document_root": str(FRONTEND_DIR)},
-        ),
-    ]
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    urlpatterns += static(settings.MEDIA_URL,  document_root=settings.MEDIA_ROOT)

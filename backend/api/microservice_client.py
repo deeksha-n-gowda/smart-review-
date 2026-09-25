@@ -54,9 +54,11 @@ class JavaServiceClient:
     """
 
     def __init__(self):
-        host = getattr(settings, "JAVA_SERVICE_HOST", "localhost")
-        port = getattr(settings, "JAVA_SERVICE_PORT", 9090)
-        self.base_url = f"http://{host}:{port}"
+        # Full base URL — settings resolves local/Docker (http://host:port)
+        # and Render (https://<service>.onrender.com) variants.
+        self.base_url = getattr(
+            settings, "JAVA_SERVICE_URL", "http://localhost:9090"
+        ).rstrip("/")
 
     def health(self) -> dict:
         """
@@ -167,9 +169,11 @@ class CSharpServiceClient:
     """
 
     def __init__(self):
-        host = getattr(settings, "CSHARP_SERVICE_HOST", "localhost")
-        port = getattr(settings, "CSHARP_SERVICE_PORT", 9091)
-        self.base_url = f"http://{host}:{port}"
+        # Full base URL — settings resolves local/Docker (http://host:port)
+        # and Render (https://<service>.onrender.com) variants.
+        self.base_url = getattr(
+            settings, "CSHARP_SERVICE_URL", "http://localhost:9091"
+        ).rstrip("/")
 
     def health(self) -> dict:
         """GET /health — Check if the C# daemon is reachable."""

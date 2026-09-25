@@ -40,6 +40,28 @@ DEBUG = os.environ.get("DEBUG", "True").lower() in ("true", "1", "yes")
 ALLOWED_HOSTS_ENV = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1")
 ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS_ENV.split(",") if h.strip()]
 
+# On Render the public hostname is injected at runtime — add it automatically
+# so API calls and admin logins work without per-service env edits.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+# Django runs behind Render's HTTPS-terminating proxy. Trust X-Forwarded-Proto
+# so request.is_secure() and CSRF's HTTPS referer checks behave correctly.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# CSRF requires the full origin (scheme + host) for POSTs such as admin login.
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if o.strip()
+]
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+    # Only mark cookies Secure when actually served over the HTTPS domain.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 
 # ---------------------------------------------------------------------------
 # Application definition
@@ -65,6 +87,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",        # Must be before CommonMiddleware
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",   # Serve collectstatic output (prod)
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -152,10 +175,23 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]  # Dev static files in /backend/static/
-STATIC_ROOT = BASE_DIR.parent / "staticfiles"  # collectstatic output for production
+# collectstatic output for production. The Docker image overrides this via
+# env var (the container layout lacks the local backend/ sub-directory).
+STATIC_ROOT = Path(
+    os.environ.get("STATIC_ROOT", str(BASE_DIR.parent / "staticfiles"))
+)
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR.parent / "mediafiles"  # Uploaded code files stored here
+# Uploaded files. Overridable the same way (see Dockerfile ENV MEDIA_ROOT).
+MEDIA_ROOT = Path(
+    os.environ.get("MEDIA_ROOT", str(BASE_DIR.parent / "mediafiles"))
+)
+
+# WhiteNoise serves STATIC_ROOT in production — this deployment has no nginx.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -235,9 +271,27 @@ else:
 # ---------------------------------------------------------------------------
 # External Microservice Endpoints
 # ---------------------------------------------------------------------------
+def _service_base_url(host: str, port: int) -> str:
+    """Build a microservice base URL.
+
+    - Full URLs (http://… / https://…) pass through unchanged.
+    - On Render, free services can only reach each other over the public
+      onrender.com HTTPS domain (no private networking on the free plan),
+      so a bare hostname becomes https://<host> (port 443).
+    - Locally and in Docker Compose: http://host:port as before.
+    """
+    if host.startswith(("http://", "https://")):
+        return host.rstrip("/")
+    if RENDER_EXTERNAL_HOSTNAME:  # running on Render
+        return f"https://{host.rstrip('/')}"
+    return f"http://{host}:{port}"
+
+
 JAVA_SERVICE_HOST = os.environ.get("JAVA_SERVICE_HOST", "localhost")
 JAVA_SERVICE_PORT = int(os.environ.get("JAVA_SERVICE_PORT", "9090"))
-JAVA_SERVICE_URL = f"http://{JAVA_SERVICE_HOST}:{JAVA_SERVICE_PORT}"
+JAVA_SERVICE_URL = os.environ.get("JAVA_SERVICE_URL") or _service_base_url(
+    JAVA_SERVICE_HOST, JAVA_SERVICE_PORT
+)
 
 CSHARP_PIPE_NAME = os.environ.get("CSHARP_PIPE_NAME", "CodeReviewDaemonPipe")
 
@@ -245,7 +299,9 @@ CSHARP_PIPE_NAME = os.environ.get("CSHARP_PIPE_NAME", "CodeReviewDaemonPipe")
 # In Docker Compose the daemon runs as service "csharp" on the compose network.
 CSHARP_SERVICE_HOST = os.environ.get("CSHARP_SERVICE_HOST", "localhost")
 CSHARP_SERVICE_PORT = int(os.environ.get("CSHARP_SERVICE_PORT", "9091"))
-CSHARP_SERVICE_URL  = f"http://{CSHARP_SERVICE_HOST}:{CSHARP_SERVICE_PORT}"
+CSHARP_SERVICE_URL = os.environ.get("CSHARP_SERVICE_URL") or _service_base_url(
+    CSHARP_SERVICE_HOST, CSHARP_SERVICE_PORT
+)
 
 # Master switch for calling the Java / C# microservices during analysis.
 # When False the backend runs purely on the local Python rule engine —

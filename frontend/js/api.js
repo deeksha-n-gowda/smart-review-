@@ -14,7 +14,12 @@
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const BASE_URL = "http://localhost:8000/api/v1";
+// Same-origin API base — works on localhost, Docker, and any deployed host.
+// (Previously hardcoded to http://localhost:8000, which broke every request
+// once the app was served from another machine or a public URL.)
+// Standalone preview via serve_frontend.py falls back to mock data when this
+// origin's health check fails — see useMockData().
+const BASE_URL = `${window.location.origin}/api/v1`;
 
 // How long to wait before aborting a request (ms)
 const DEFAULT_TIMEOUT_MS = 30_000;

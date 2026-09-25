@@ -8,6 +8,7 @@ Django==4.2.13
 djangorestframework==3.15.1
 django-cors-headers==4.3.1          # Allow frontend to call the API cross-origin
 gunicorn==23.0.0                    # Production WSGI server (Docker image CMD)
+whitenoise==6.8.2                   # Serve collectstatic output (no nginx needed)
 
 # --- Database ---
 psycopg2-binary==2.9.10              # PostgreSQL adapter (for production)
