@@ -1,5 +1,7 @@
 # Smart Review — AI-Powered Code Review Assistant
 
+**Live demo:** **[https://smart-review-django.onrender.com](https://smart-review-django.onrender.com)** · Admin: [`/admin/`](https://smart-review-django.onrender.com/admin/) (see [Deployment](#deployment-render) for credentials)
+
 A full-stack intelligent code review system built as a capstone project. It performs static analysis across four languages, explains every finding with illustrative SHAP/LIME-style attributions, encrypts all uploaded source code with AES-256-GCM, and is fully containerised with Docker.
 
 ---
@@ -97,7 +99,7 @@ smart-review/
 
 ```bash
 git clone https://github.com/deeksha-n-gowda/smart-review-.git
-cd smart-review
+cd smart-review-
 cp .env.example .env
 ```
 
@@ -146,9 +148,13 @@ docker-compose -f docker/docker-compose.yml exec django python manage.py seed_de
 
 ### 5. Access the application
 
-- Web UI: http://localhost:8000
-- API: http://localhost:8000/api/v1/health/
-- Admin: http://localhost:8000/admin/ (user: `admin`, password: `admin`)
+Local (Docker) endpoints:
+
+- Web UI: `http://localhost:8000`
+- API: `http://localhost:8000/api/v1/health/`
+- Admin: `http://localhost:8000/admin/` (user: `admin`, password: `admin`)
+
+Or use the hosted deployment: **<https://smart-review-django.onrender.com>**
 
 ---
 
@@ -176,6 +182,41 @@ python manage.py runserver
 
 ---
 
+## Deployment (Render)
+
+The project deploys to [Render](https://render.com) free tier via the blueprint in [`render.yaml`](render.yaml).
+
+**Live site:** **[https://smart-review-django.onrender.com](https://smart-review-django.onrender.com)**
+
+The blueprint provisions four resources:
+
+| Resource | Type | Notes |
+|---|---|---|
+| `smart-review-django` | Web service (Docker) | Django + frontend, runs migrations and seeds data on boot |
+| `smart-review-java` | Web service (Docker) | Java 17 compiler microservice |
+| `smart-review-csharp` | Web service (Docker) | .NET 8 Roslyn analysis daemon |
+| `smart-review-db` | PostgreSQL 16 | Free instance (expires after 30 days — see below) |
+
+### Redeploying
+
+Push to `main` on GitHub — Render auto-syncs the blueprint on every push.
+
+### Secrets
+
+Two environment variables are intentionally **not** stored in the repository (`sync: false` in `render.yaml`). Set them in the Render dashboard under **Blueprint → Env**:
+
+- `AES_SECRET_KEY` — base64-encoded 32-byte key for AES-256-GCM encryption
+- `DJANGO_SUPERUSER_PASSWORD` — admin password for the seeded `admin` user (email: `admin@example.com`)
+
+### Free-tier caveats
+
+- Services **sleep after ~15 minutes of idle time**; the first request takes 30–50 seconds to wake them up.
+- The Java/C# enrichment step uses a 3-second timeout, so the very first analysis after a cold start may skip language-specific enrichment (the core ML analysis still runs — graceful by design).
+- The free PostgreSQL instance **expires 30 days after creation**; upgrade or recreate it before then.
+- 750 instance-hours/month are shared across all three web services.
+
+---
+
 ## Running Tests
 
 Inside the container:
@@ -197,7 +238,7 @@ The test suite covers the ML analyzer, explainer, enrichment mapping, AES encryp
 
 ## API Overview
 
-Base URL: `http://localhost:8000/api/v1`
+Base URL: `https://smart-review-django.onrender.com/api/v1` (locally: `http://localhost:8000/api/v1`)
 
 | Method | Endpoint | Description |
 |---|---|---|
