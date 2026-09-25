@@ -1,0 +1,92 @@
+# render.yaml — Smart Review (Render Blueprint)
+# ==============================================
+# Render reads this file and provisions the full stack:
+#   smart-review-django  Django + gunicorn (Docker)
+#   smart-review-java    javac compiler microservice (Docker)
+#   smart-review-csharp  Roslyn analysis daemon (Docker)
+#   smart-review-db      Render Postgres
+#
+# Deploy: Render Dashboard → New → Blueprint → connect this repository.
+# You will be prompted for AES_SECRET_KEY and DJANGO_SUPERUSER_PASSWORD
+# (sync: false below). Generate the AES key with:
+#   python -c "import base64,os; print(base64.b64encode(os.urandom(32)).decode())"
+#
+# Free-tier notes:
+#   - Services spin down after 15 min without traffic (~1 min to wake).
+#   - 750 free instance-hours/month shared across services (idle = free).
+#   - Free Postgres expires 30 days after creation (upgrade or recreate).
+
+services:
+  - type: web
+    name: smart-review-django
+    runtime: docker
+    plan: free
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health/
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AES_SECRET_KEY
+        sync: false            # paste a base64 32-byte key when prompted
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com,localhost,127.0.0.1"
+      - key: GUNICORN_WORKERS
+        value: "2"             # 512 MB free instance — keep workers small
+      - key: MICROSERVICES_ENABLED
+        value: "True"
+      # Bare hostnames of the sibling services (their public onrender.com
+      # domains — free services cannot receive private network traffic).
+      # settings.py upgrades these to https:// automatically.
+      - key: JAVA_SERVICE_HOST
+        fromService:
+          name: smart-review-java
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: CSHARP_SERVICE_HOST
+        fromService:
+          name: smart-review-csharp
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-review-db
+          property: connectionString
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: SEED_DEV_DATA
+        value: "true"          # entrypoint skips seeding once data exists
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: admin
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false            # prompted once at Blueprint creation
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: admin@example.com
+
+  - type: web
+    name: smart-review-java
+    runtime: docker
+    plan: free
+    dockerfilePath: ./docker/Dockerfile.java
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: JAVA_OPTS
+        value: "-Xmx256m -Xms64m -XX:+UseContainerSupport"
+
+  - type: web
+    name: smart-review-csharp
+    runtime: docker
+    plan: free
+    dockerfilePath: ./docker/Dockerfile.csharp
+    dockerContext: .
+    healthCheckPath: /health
+
+databases:
+  - name: smart-review-db
+    plan: free
+    postgresMajorVersion: "16"   # matches local compose (postgres:16-alpine)
+    databaseName: smart_review
+    user: smart_review
