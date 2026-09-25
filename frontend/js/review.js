@@ -102,6 +102,30 @@ class ReviewPage {
     this._bindUI();
 
     // Load file data
+    if (!this.fileId && this.projectId) {
+      // Dashboard links carry only ?project= — resolve it to the project's
+      // first analyzed file, then rewrite the URL so refreshes, the
+      // Re-analyze button, and shared links keep working.
+      try {
+        const project = await api.getProject(this.projectId);
+        const files   = project.code_files || project.files || [];
+        const chosen  = files.find(f => f.status === "complete") || files[0];
+        if (chosen && chosen.id) {
+          this.fileId = chosen.id;
+          const url = new URL(window.location.href);
+          url.searchParams.set("file", this.fileId);
+          window.history.replaceState(null, "", url);
+        } else {
+          this._showEditorEmpty("This project has no files yet. Upload one from the dashboard.");
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not load project files:", err);
+        this._showEditorEmpty(`Could not load project: ${err.message}`);
+        return;
+      }
+    }
+
     if (this.fileId) {
       await this._loadFile(this.fileId);
     } else {
@@ -247,6 +271,18 @@ class ReviewPage {
           ${fileData.filename}
         `;
       }
+
+      // Sync the topbar — updateTopbar() in review.html runs on page load and
+      // may have executed before the file was resolved from the ?project= param.
+      const nameEl = document.getElementById("topbar-file-name");
+      if (nameEl) nameEl.textContent = fileData.filename || "";
+      const riskEl = document.getElementById("topbar-risk-value");
+      if (riskEl && fileData.risk_score != null) {
+        const pct = Math.round(fileData.risk_score * 100);
+        riskEl.style.color = pct >= 70 ? "var(--sev-critical)" : pct >= 40 ? "var(--sev-medium)" : "var(--sev-low)";
+        riskEl.textContent = `${pct}%`;
+      }
+      document.title = `${fileData.filename} — CodeLens`;
 
       // Render editor
       this.editor.loadFile(fileData, this.sourceCode);
