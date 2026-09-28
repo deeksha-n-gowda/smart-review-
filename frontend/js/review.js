@@ -358,9 +358,12 @@ class ReviewPage {
           ${vuln.rule_id ? `<span class="text-muted"> · ${this._esc(vuln.rule_id)}</span>` : ""}
         </div>
       `;
-      item.addEventListener("click", () => {
-        this.editor.selectVulnerability(vuln);
-        this._onVulnSelected(vuln);
+      item.addEventListener("click", async () => {
+        // Enrich first so the editor's inline annotation gets the
+        // description (the list payload omits it).
+        const full = await this._ensureVulnDetail(vuln);
+        this.editor.selectVulnerability(full);
+        this._onVulnSelected(full);
       });
       listEl.appendChild(item);
     });
@@ -368,7 +371,34 @@ class ReviewPage {
 
   // ── Vulnerability Selection ────────────────────────────────────────────
 
+  /**
+   * The file-detail payload's vulnerability list omits
+   * description/recommendation/fixed_snippet (the export report handles
+   * this the same way). Fetch the full record on demand so the inline
+   * annotation and the Detail/Fix tabs have real content.
+   */
+  async _ensureVulnDetail(vuln) {
+    if (!vuln || vuln.description !== undefined) return vuln;
+    try {
+      const full = await api.getVulnerability(vuln.id);
+      if (full && full.description !== undefined) return full;
+    } catch (err) {
+      console.warn("Could not load vulnerability detail:", err);
+    }
+    return vuln;
+  }
+
   async _onVulnSelected(vuln) {
+    const full = await this._ensureVulnDetail(vuln);
+
+    // The editor's line-click/keyboard path selects straight from the list
+    // payload (no description) before the detail arrives — re-run the
+    // selection once so the inline annotation shows it. The re-entrant
+    // callback receives the enriched object (same reference), which
+    // _ensureVulnDetail returns unchanged, so this runs at most once.
+    if (full !== vuln) this.editor.selectVulnerability(full);
+
+    vuln = full;
     this.activeVuln = vuln;
 
     // Update active state in list
@@ -431,7 +461,7 @@ class ReviewPage {
 
           <div class="panel-section">
             <div class="panel-section__label">Description</div>
-            <p class="vuln-description font-serif">${this._esc(vuln.description)}</p>
+            <p class="vuln-description font-serif">${this._esc(vuln.description || "Description unavailable.")}</p>
           </div>
 
           <div class="panel-section">

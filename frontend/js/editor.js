@@ -428,6 +428,10 @@ export class CodeEditor {
     const callout = document.createElement("div");
     callout.className = `vuln-callout vuln-callout--${vuln.severity}`;
 
+    // File-detail list payloads omit description — default to "" so a
+    // selection never crashes the whole click/keyboard flow.
+    const desc = vuln.description || "";
+
     callout.innerHTML = `
       <div class="vuln-callout__title">
         <span class="vuln-dot vuln-dot-${vuln.severity}"></span>
@@ -435,9 +439,9 @@ export class CodeEditor {
         <span class="badge badge-${vuln.severity}" style="font-size:10px; padding:1px 6px;">${vuln.severity}</span>
       </div>
       <div class="vuln-callout__text">${escapeHTML(
-        vuln.description.length > 160
-          ? vuln.description.slice(0, 157) + "…"
-          : vuln.description
+        desc.length > 160
+          ? desc.slice(0, 157) + "…"
+          : desc
       )}</div>
       <div class="vuln-callout__actions">
         <button class="btn btn-sm btn-ghost" data-action="show-fix" style="font-size:10px; padding:2px 8px;">
