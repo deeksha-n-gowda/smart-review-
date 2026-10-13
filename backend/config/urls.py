@@ -1,6 +1,6 @@
 """
 config/urls.py — Root URL Configuration
-==========================================
+=================================================================
 Routes:
     /                   → frontend/index.html  (dashboard)
     /review.html        → frontend/review.html (code review editor)
@@ -21,13 +21,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
 from django.http import HttpResponse, Http404
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+
 
 def _find_frontend_dir() -> Path:
     """Locate the frontend/ directory across local and container layouts.
 
     Local checkout:  <repo>/backend/config/urls.py  → <repo>/frontend
     Docker image:    /app/config/urls.py            → /app/frontend
-                     (Dockerfile: COPY frontend/ /app/frontend/)
+                      (Dockerfile: COPY frontend/ /app/frontend/)
     """
     candidates = [
         Path(settings.BASE_DIR).parent / "frontend",  # repo checkout
@@ -67,8 +69,13 @@ urlpatterns = [
     # Django admin
     path("admin/", admin.site.urls),
 
-    # REST API
+    # REST API (versioned under /api/v1/)
     path("api/v1/", include("api.urls")),
+
+    # OpenAPI schema & UI (drf-spectacular)
+    path("api/schema/.json", SpectacularAPIView.as_view(), name="schema-json"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema-json"), name="schema-swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema-json"), name="schema-redoc"),
 
     # Frontend HTML pages (served from /frontend/ directory)
     path("",            _frontend_file("index.html"),  name="home"),

@@ -70,6 +70,10 @@ class ReviewPage {
     this.activeVuln  = null;
     this.activeChart = null;
 
+    // Multi-file support
+    this.projectFiles = [];      // all files in the current project
+    this.currentFileIndex = -1;  // index of currently loaded file
+
     // UI elements
     this.editor      = null;
     this.vulnFilter  = "all"; // current severity filter in left sidebar
@@ -104,29 +108,46 @@ class ReviewPage {
     // Load file data
     if (!this.fileId && this.projectId) {
       // Dashboard links carry only ?project= — resolve it to the project's
-      // first analyzed file, then rewrite the URL so refreshes, the
-      // Re-analyze button, and shared links keep working.
+      // files, create tabs for all, and load the first analyzed file.
       try {
         const project = await api.getProject(this.projectId);
-        const files   = project.code_files || project.files || [];
-        const chosen  = files.find(f => f.status === "complete") || files[0];
-        if (chosen && chosen.id) {
-          this.fileId = chosen.id;
-          const url = new URL(window.location.href);
-          url.searchParams.set("file", this.fileId);
-          window.history.replaceState(null, "", url);
-        } else {
+        this.projectFiles = project.code_files || project.files || [];
+        if (this.projectFiles.length === 0) {
           this._showEditorEmpty("This project has no files yet. Upload one from the dashboard.");
           return;
         }
+
+        // Build file tabs for ALL project files
+        this._buildFileTabs();
+
+        // Determine which file to load initially
+        let chosen = this.projectFiles.find(f => f.status === "complete") || this.projectFiles[0];
+        if (chosen && chosen.id) {
+          this.fileId = chosen.id;
+          this.currentFileIndex = this.projectFiles.findIndex(f => f.id === chosen.id);
+          const url = new URL(window.location.href);
+          url.searchParams.set("file", this.fileId);
+          window.history.replaceState(null, "", url);
+        }
+
+        await this._loadFile(this.fileId);
       } catch (err) {
         console.warn("Could not load project files:", err);
         this._showEditorEmpty(`Could not load project: ${err.message}`);
         return;
       }
-    }
-
-    if (this.fileId) {
+    } else if (this.fileId) {
+      // Direct file link (?file=) - still need to load project to build tabs
+      if (this.projectId) {
+        try {
+          const project = await api.getProject(this.projectId);
+          this.projectFiles = project.code_files || project.files || [];
+          this._buildFileTabs();
+          this.currentFileIndex = this.projectFiles.findIndex(f => f.id === this.fileId);
+        } catch (err) {
+          console.warn("Could not load project files for tabs:", err);
+        }
+      }
       await this._loadFile(this.fileId);
     } else {
       this._showEditorEmpty("No file selected. Open a project from the dashboard.");
@@ -165,7 +186,7 @@ class ReviewPage {
     this.editorPaneEl = this._createElement("div", "editor-pane");
     const editorWrap = this._createElement("div", "");
     editorWrap.style.cssText = "display:flex; flex-direction:column; height:100%;";
-    // File tabs (we just show one tab for now; multi-file is future work)
+    // File tabs — one per project file
     this.fileTabsEl = this._createElement("div", "file-tabs");
     this.fileTabsEl.innerHTML = `<div class="file-tab active" id="current-file-tab">
       <span class="file-tab__indicator" style="background: var(--amber-bright);"></span>
@@ -208,6 +229,63 @@ class ReviewPage {
     layout.appendChild(this.editorPaneEl);
     layout.appendChild(this.analysisPanelEl);
     main.appendChild(layout);
+  }
+
+  /**
+   * Build file tabs for all project files.
+   * Called after project files are loaded in init().
+   */
+  _buildFileTabs() {
+    if (!this.projectFiles.length) return;
+
+    this.fileTabsEl.innerHTML = "";
+    this.projectFiles.forEach((file, idx) => {
+      const tab = document.createElement("div");
+      tab.className = "file-tab" + (idx === this.currentFileIndex ? " active" : "");
+      tab.dataset.fileId = file.id;
+      tab.dataset.index = idx;
+
+      const severityClass = file.risk_score >= 0.7 ? "vuln-dot-critical" :
+                           file.risk_score >= 0.4 ? "vuln-dot-high" :
+                           file.risk_score >= 0.1 ? "vuln-dot-medium" : "vuln-dot-low";
+      const langClass = file.language || "";
+
+      tab.innerHTML = `
+        <span class="file-tab__indicator ${severityClass}"></span>
+        <span class="lang-tag ${langClass}" style="margin:0; border:none; background:none; font-size:11px;">${langClass}</span>
+        ${this._esc(file.filename)}
+      `;
+
+      tab.addEventListener("click", () => this._switchFile(idx));
+      this.fileTabsEl.appendChild(tab);
+    });
+  }
+
+  /**
+   * Switch to a different file by index.
+   * Updates tabs, URL, and loads the new file's data.
+   */
+  async _switchFile(idx) {
+    if (idx < 0 || idx >= this.projectFiles.length || idx === this.currentFileIndex) return;
+
+    const file = this.projectFiles[idx];
+    if (!file || !file.id) return;
+
+    // Update UI tabs
+    this.fileTabsEl.querySelectorAll(".file-tab").forEach((tab, i) => {
+      tab.classList.toggle("active", i === idx);
+    });
+
+    this.currentFileIndex = idx;
+    this.fileId = file.id;
+
+    // Update URL without reload
+    const url = new URL(window.location.href);
+    url.searchParams.set("file", file.id);
+    window.history.replaceState(null, "", url);
+
+    // Load the new file
+    await this._loadFile(file.id);
   }
 
   _initEditor() {
@@ -261,12 +339,15 @@ class ReviewPage {
       this.fileData   = fileData;
       this.sourceCode = sourceData.source || sourceData;
 
-      // Update file tab label
-      const tab = document.getElementById("current-file-tab");
-      if (tab) {
+      // Update file tab label (the tab for the current file index)
+      const currentTab = this.fileTabsEl.querySelector(`.file-tab[data-index="${this.currentFileIndex}"]`);
+      if (currentTab) {
         const langClass = fileData.language || "";
-        tab.innerHTML = `
-          <span class="file-tab__indicator vuln-dot-${this._riskColor(fileData.risk_score)}"></span>
+        const severityClass = fileData.risk_score >= 0.7 ? "vuln-dot-critical" :
+                             fileData.risk_score >= 0.4 ? "vuln-dot-high" :
+                             fileData.risk_score >= 0.1 ? "vuln-dot-medium" : "vuln-dot-low";
+        currentTab.innerHTML = `
+          <span class="file-tab__indicator ${severityClass}"></span>
           <span class="lang-tag ${langClass}" style="margin:0; border:none; background:none; font-size:11px;">${langClass}</span>
           ${fileData.filename}
         `;
@@ -919,7 +1000,8 @@ class ReviewPage {
   _riskColor(score) {
     if (score == null) return "info";
     if (score >= 0.7)  return "critical";
-    if (score >= 0.4)  return "medium";
+    if (score >= 0.4)  return "high";
+    if (score >= 0.1)  return "medium";
     return "low";
   }
 

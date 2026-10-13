@@ -60,11 +60,13 @@ def pytest_configure(config):
         "django.contrib.auth.hashers.MD5PasswordHasher",
     ]
 
-    # Disable Django's rate limiting in tests
+    # Use high throttle rates in tests so they don't interfere with tests
     django_settings.REST_FRAMEWORK = {
         **django_settings.REST_FRAMEWORK,
-        "DEFAULT_THROTTLE_CLASSES": [],
-        "DEFAULT_THROTTLE_RATES": {},
+        "DEFAULT_THROTTLE_RATES": {
+            "anon": "10000/minute",
+            "user": "10000/minute",
+        },
     }
 
     # Silence migration output during test DB creation
