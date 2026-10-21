@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<!--
+  faq.html — AI Code Review Guide & FAQ
+  =========================================
+  A crawlable content page targeting the questions developers actually
+  search for ("how do I find security vulnerabilities in my code",
+  "is AI code review worth it", "explainable AI code review", ...).
+
+  __SITE_URL__ is replaced with the deployment origin at request time
+  (backend/config/urls.py), so canonical/OG URLs work on any domain.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>AI Code Review Guide — How to Find Vulnerabilities Before Release | Smart Review</title>
+  <meta name="description" content="A practical guide to finding security vulnerabilities in your code with static analysis and explainable AI. Covers Python, Java, C# and JavaScript: SQL injection, hardcoded secrets, weak crypto, path traversal, XSS and insecure deserialization — plus what SHAP and LIME explainability means for your review." />
+  <meta name="keywords" content="how to find security vulnerabilities in code, ai code review, code vulnerability scanner, static code analysis, explainable ai code review, shap lime code analysis, sql injection detection, hardcoded secrets scanner, weak cryptography detection, path traversal scanner, xss scanner, insecure deserialization scanner, python security scanner, java security scanner, c# security scanner, javascript security scanner, sast" />
+  <link rel="canonical" href="__SITE_URL__/faq.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+  <meta name="author" content="Smart Review" />
+  <meta name="theme-color" content="#0a0b0e" />
+
+  <!-- Open Graph / social sharing -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Smart Review" />
+  <meta property="og:title" content="AI Code Review Guide — How to Find Vulnerabilities Before Release" />
+  <meta property="og:description" content="How static analysis and explainable AI find real vulnerabilities in Python, Java, C# and JavaScript — and how to triage the results." />
+  <meta property="og:url" content="__SITE_URL__/faq.html" />
+  <meta property="og:image" content="__SITE_URL__/assets/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="AI Code Review Guide — How to Find Vulnerabilities Before Release" />
+  <meta name="twitter:description" content="Static analysis plus explainable AI: a practical, language-by-language guide to finding code vulnerabilities before release." />
+  <meta name="twitter:image" content="__SITE_URL__/assets/og-image.png" />
+
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/assets/favicon.svg" />
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "AI Code Review Guide — How to Find Vulnerabilities Before Release",
+    "description": "A practical guide to finding security vulnerabilities in Python, Java, C# and JavaScript with static analysis and explainable AI.",
+    "url": "__SITE_URL__/faq.html",
+    "inLanguage": "en",
+    "author": { "@type": "Organization", "name": "Smart Review" },
+    "publisher": { "@type": "Organization", "name": "Smart Review" },
+    "isPartOf": { "@type": "WebSite", "name": "Smart Review", "url": "__SITE_URL__/" },
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "__SITE_URL__/" },
+        { "@type": "ListItem", "position": 2, "name": "AI Code Review Guide", "item": "__SITE_URL__/faq.html" }
+      ]
+    }
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is AI code review, and how is it different from a manual review?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A manual review is limited by time and attention, and rarely checks every branch of every function. AI code review applies the same rule set to every file consistently. It does not replace a human reviewer - it removes the mechanical work so the reviewer can focus on architecture, business logic and trade-offs. Smart Review gives you both: a machine-checked baseline plus an explanation of why each finding matters."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I find security vulnerabilities in my code before release?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Start with static analysis on every file to catch injection flaws, hardcoded secrets, weak cryptography and dangerous API usage before the code runs. Then add a layer of human review for the bugs a scanner cannot see, such as missing authorisation checks and insecure design. Smart Review automates the first step and explains the results, so you can focus manual review on what genuinely needs a human. Fix critical and high severity findings first."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which programming languages does Smart Review support?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Python (.py), Java (.java), C# (.cs) and JavaScript (.js, .mjs) are supported today. Each language has its own rule set and parser: Python is analysed with its AST and pylint, Java with javalang, and the C# and JavaScript analysers use dedicated pattern and structure checks. You can mix languages inside the same project, and each file is scored independently."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does explainable AI mean here - what are SHAP and LIME?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A black-box risk score is not actionable. Smart Review shows why a file was scored that way. SHAP (SHapley Additive exPlanations) attributes the risk score across the individual features that produced it, and LIME (Local Interpretable Model Explanations) explains each finding locally by examining the exact lines around the flagged code. SHAP gives the file-level picture, LIME gives the line-level reason. Both are in the Detail tab of the analysis panel."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Smart Review free? Do I need an account or a credit card?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Smart Review is free, and you do not need to sign up, create an account or enter a credit card. Create a project, upload your files and the analysis runs immediately. There is no trial timer and no feature gate on the vulnerability report, the explainability charts or the PDF export."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is my source code secure? What happens to the files I upload?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Your source code is encrypted at rest with AES-256-GCM before it is written to the database, so the stored blob is not readable as plain text. Analysis runs on the encrypted-at-rest copy and the decrypted content is only materialised in memory while a file is being scanned. You can delete a project at any time."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long does an analysis take, and can I review multiple files at once?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A typical single file is analysed in a couple of seconds, and a project with many files is processed file by file so one slow file never blocks the rest. The review page gives you a tab per file, so you can compare the source, risk score and vulnerability list for each file without leaving the page. The URL updates as you switch, so a link to one specific file's analysis can be bookmarked or shared."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I share or export the analysis results?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Use the Export button in the review toolbar to produce a clean, print-ready report you can save as a PDF or share with your team. The report contains the file summary, the risk score and the full list of findings with their explanations."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+</head>
+<body class="content-body">
+
+<!-- =========================================================
+     Navigation
+     ========================================================= -->
+<nav class="topbar" aria-label="Main navigation">
+  <div class="topbar__logo">
+    <a href="/" style="display:flex; align-items:center; gap:var(--space-2); text-decoration:none; color:inherit;">
+      <div class="logo-icon" aria-hidden="true">CL</div>
+      <div>
+        <span>Smart Review</span>
+        <span class="logo-sub">AI Powered Code Review Assistant</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="topbar__nav">
+    <a href="/" class="topbar__nav-link">
+      <span aria-hidden="true">⊞</span> Dashboard
+    </a>
+    <a href="/review.html" class="topbar__nav-link">
+      <span aria-hidden="true">⎇</span> Review
+    </a>
+    <a href="/faq.html" class="topbar__nav-link active" aria-current="page">
+      <span aria-hidden="true">?</span> Guide
+    </a>
+  </div>
+
+  <div class="topbar__right">
+    <a class="btn btn-primary btn-sm" href="/">+ New Project</a>
+  </div>
+</nav>
+
+<!-- =========================================================
+     Content
+     ========================================================= -->
+<main class="content-page">
+
+  <header class="content-hero">
+    <p class="content-hero__eyebrow">AI Code Review Guide</p>
+    <h1 class="content-hero__title">How to find security vulnerabilities in your code before release</h1>
+    <p class="content-hero__lead">
+      A practical, language-by-language guide to catching real vulnerabilities with
+      static analysis — and understanding exactly why each finding was raised, so you
+      fix the right things first.
+    </p>
+    <div class="content-hero__actions">
+      <a class="btn btn-primary" href="/">Run a free code review</a>
+      <a class="btn btn-secondary" href="/review.html">Open the review editor</a>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <p class="toc__title">On this page</p>
+    <ol class="toc__list">
+      <li><a href="#how-to-review">A five-step code review process</a></li>
+      <li><a href="#what-it-detects">What Smart Review detects, by language</a></li>
+      <li><a href="#severity">How severity and risk scores work</a></li>
+      <li><a href="#explainable-ai">Why explainable AI matters for code review</a></li>
+      <li><a href="#faq">Frequently asked questions</a></li>
+    </ol>
+  </nav>
+
+  <article class="content-article">
+
+    <!-- ── 1. Process ────────────────────────────────────────────── -->
+    <section id="how-to-review">
+      <h2>A five-step code review process</h2>
+      <p>
+        Finding vulnerabilities early is cheaper than finding them in production. This
+        is the process Smart Review is built to support — each step catches a class of
+        bug that the previous one misses.
+      </p>
+
+      <h3>1. Scan every file automatically</h3>
+      <p>
+        Start with static analysis over the whole codebase. It costs minutes rather than
+        days and reliably finds the mechanical defects: unparameterised SQL, secrets
+        committed to source, weak hashes, path traversal, unsafe deserialisation. Upload
+        a folder of <code>.py</code>, <code>.java</code>, <code>.cs</code> and
+        <code>.js</code> files and every one of them is analysed.
+      </p>
+
+      <h3>2. Triage by severity, not by order</h3>
+      <p>
+        Sort findings into critical, high, medium and low. A single exploitable SQL
+        injection matters more than ten naming nits, so fix critical and high issues
+        before you read anything else. Smart Review ranks each finding automatically
+        and gives every file its own risk score so you can see at a glance where the
+        real exposure is.
+      </p>
+
+      <h3>3. Read the explanation, not just the alert</h3>
+      <p>
+        A finding without context is noise. For each vulnerability Smart Review shows
+        the exact flagged line, a plain-English description of the flaw, and the
+        feature attribution behind the score. If the attribution shows the finding was
+        driven by a pattern that does not apply in your context, you can dismiss it
+        with a reason instead of guessing.
+      </p>
+
+      <h3>4. Fix and verify</h3>
+      <p>
+        Apply the suggested fix — parameterised queries instead of string
+        concatenation, environment variables instead of hardcoded secrets, SHA-256
+        instead of MD5 — then re-run the analysis on the changed file. The review page
+        has a <strong>Re-analyze</strong> button for exactly this loop.
+      </p>
+
+      <h3>5. Add the human layer</h3>
+      <p>
+        No scanner finds missing authorisation, incorrect business logic or a
+        dependency you trusted too much. Automated analysis gives you a reliable
+        baseline; human review is what catches design flaws. Use the machine results to
+        spend human attention where it matters.
+      </p>
+    </section>
+
+    <!-- ── 2. Detection coverage ─────────────────────────────────── -->
+    <section id="what-it-detects">
+      <h2>What Smart Review detects, by language</h2>
+      <p>
+        Each language has its own rule set, so the findings are specific to the
+        language's real weaknesses rather than generic regex noise. A project can mix
+        languages; every file is analysed on its own.
+      </p>
+
+      <div class="rule-group">
+        <h3 class="rule-group__title"><span class="lang-tag python">Python</span> Python rules</h3>
+        <ul class="rule-list">
+          <li>SQL injection via string concatenation and via <code>.format()</code></li>
+          <li>OS command injection and <code>subprocess</code> shell injection</li>
+          <li>Code injection through <code>eval()</code> and <code>exec()</code></li>
+          <li>Insecure deserialisation with <code>pickle</code> and unsafe YAML loading</li>
+          <li>Weak cryptographic hashes (MD5, SHA-1) and insecure <code>random</code> usage</li>
+          <li>Hardcoded secrets and credentials</li>
+          <li>Path traversal, Flask debug mode enabled</li>
+          <li>Bare <code>except</code> clauses, mutable default arguments</li>
+          <li>High cyclomatic complexity, long functions, string concatenation in loops</li>
+          <li>Debug leftovers: <code>print()</code> statements and TODO/FIXME comments</li>
+        </ul>
+      </div>
+
+      <div class="rule-group">
+        <h3 class="rule-group__title"><span class="lang-tag java">Java</span> Java rules</h3>
+        <ul class="rule-list">
+          <li>SQL injection</li>
+          <li>Hardcoded passwords and credentials</li>
+          <li>Insecure deserialisation</li>
+          <li>Weak random number generation (non-cryptographic <code>Random</code>)</li>
+          <li>Null pointer dereference risk</li>
+          <li><code>printStackTrace()</code> in production code</li>
+          <li>Empty catch blocks</li>
+          <li>TODO/FIXME comments</li>
+        </ul>
+      </div>
+
+      <div class="rule-group">
+        <h3 class="rule-group__title"><span class="lang-tag csharp">C#</span> C# rules</h3>
+        <ul class="rule-list">
+          <li>SQL injection</li>
+          <li>Hardcoded connection strings and credentials</li>
+          <li>Insecure deserialisation via <code>BinaryFormatter</code></li>
+          <li>Weak cryptography (MD5/SHA1)</li>
+          <li>Path traversal</li>
+          <li>XSS via <code>Response.Write()</code></li>
+          <li>Empty catch blocks</li>
+          <li>TODO/FIXME comments</li>
+        </ul>
+      </div>
+
+      <div class="rule-group">
+        <h3 class="rule-group__title"><span class="lang-tag javascript">JavaScript</span> JavaScript rules</h3>
+        <ul class="rule-list">
+          <li>Cross-site scripting via <code>innerHTML</code> and <code>document.write()</code></li>
+          <li>Dangerous <code>eval()</code> usage</li>
+          <li>Sensitive data stored in <code>localStorage</code></li>
+          <li>Prototype pollution risk</li>
+          <li>Hardcoded API keys and secrets</li>
+          <li>Insecure <code>postMessage</code> target origin</li>
+          <li><code>console.log()</code> left in production code</li>
+          <li><code>===</code> vs <code>==</code> comparisons</li>
+          <li>TODO/FIXME comments</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── 3. Severity ───────────────────────────────────────────── -->
+    <section id="severity">
+      <h2>How severity and risk scores work</h2>
+      <p>
+        Every finding is assigned one of four severities, and every file receives a
+        risk score between 0% and 100% that rolls up its findings.
+      </p>
+      <table class="content-table">
+        <thead>
+          <tr><th scope="col">Severity</th><th scope="col">Meaning</th><th scope="col">Example</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="vuln-dot vuln-dot-critical"></span> Critical</td>
+            <td>Directly exploitable; fix before any release.</td>
+            <td>SQL injection from concatenated user input</td>
+          </tr>
+          <tr>
+            <td><span class="vuln-dot vuln-dot-high"></span> High</td>
+            <td>Serious risk; fix in the current cycle.</td>
+            <td>Hardcoded credentials, weak hashing</td>
+          </tr>
+          <tr>
+            <td><span class="vuln-dot vuln-dot-medium"></span> Medium</td>
+            <td>Needs attention but not immediately exploitable.</td>
+            <td>Empty catch blocks, debug leftovers</td>
+          </tr>
+          <tr>
+            <td><span class="vuln-dot vuln-dot-low"></span> Low</td>
+            <td>Code-quality and maintainability issue.</td>
+            <td>TODO comments, long functions, loose equality</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The per-file risk score is what powers the dashboard, so you can spot the
+        project most likely to cause an incident before you open a single line of it.
+      </p>
+    </section>
+
+    <!-- ── 4. Explainable AI ─────────────────────────────────────── -->
+    <section id="explainable-ai">
+      <h2>Why explainable AI matters for code review</h2>
+      <p>
+        A score without a reason is a black box, and developers rightly distrust black
+        boxes in their security tooling. Smart Review uses two established
+        explainability methods so you can interrogate every result.
+      </p>
+
+      <h3>SHAP — why does this file score so high?</h3>
+      <p>
+        <strong>SHAP</strong> (SHapley Additive exPlanations) splits a prediction
+        across the features that produced it. For a file-level risk score, each bar
+        represents one contributing pattern — hardcoded secrets, injection risk,
+        complexity, unused error handling — and its length shows how much it moved
+        the score. The result is a ranked list of what actually drove the risk.
+      </p>
+
+      <h3>LIME — why was this exact line flagged?</h3>
+      <p>
+        <strong>LIME</strong> (Local Interpretable Model Explanations) works locally.
+        For a single finding it inspects the code around the flagged line and shows
+        which nearby constructs pushed that finding's confidence up. It answers the
+        narrower question a developer asks while staring at one line of code: <em>why
+        this one?</em>
+      </p>
+
+      <h3>What this means in practice</h3>
+      <p>
+        When a finding looks wrong, you can see the reason instead of guessing. The
+        attribution charts in the analysis panel let you distinguish a genuine
+        injection risk from a pattern that merely looks similar — and, crucially, they
+        let you justify the finding to the rest of your team.
+      </p>
+    </section>
+
+    <!-- ── 5. FAQ ────────────────────────────────────────────────── -->
+    <section id="faq">
+      <h2>Frequently asked questions</h2>
+
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>What is AI code review, and how is it different from a manual review?</summary>
+          <p>
+            A manual review is limited by time and attention, and rarely checks every
+            branch of every function. AI code review applies the same rule set to every
+            file consistently. It does not replace a human reviewer — it removes the
+            mechanical work so the reviewer can focus on architecture, business logic
+            and trade-offs. Smart Review gives you both: a machine-checked baseline
+            plus an explanation of why each finding matters.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>How do I find security vulnerabilities in my code before release?</summary>
+          <p>
+            Start with static analysis on every file to catch injection flaws, hardcoded
+            secrets, weak cryptography and dangerous API usage before the code runs.
+            Then add a layer of human review for the bugs a scanner cannot see, such as
+            missing authorisation checks and insecure design. Smart Review automates
+            the first step and explains the results, so you can focus manual review on
+            what genuinely needs a human. Fix critical and high severity findings first.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>Which programming languages does Smart Review support?</summary>
+          <p>
+            Python (<code>.py</code>), Java (<code>.java</code>), C#
+            (<code>.cs</code>) and JavaScript (<code>.js</code>, <code>.mjs</code>)
+            are supported today. Each language has its own rule set and parser: Python
+            is analysed with its AST and pylint, Java with javalang, and the C# and
+            JavaScript analysers use dedicated pattern and structure checks. You can
+            mix languages inside the same project, and each file is scored
+            independently.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>What does "explainable AI" mean here — what are SHAP and LIME?</summary>
+          <p>
+            A black-box risk score is not actionable. Smart Review shows <em>why</em> a
+            file was scored that way. <strong>SHAP</strong> attributes the risk score
+            across the individual features that produced it, and <strong>LIME</strong>
+            explains each finding locally by examining the exact lines around the
+            flagged code. SHAP gives the file-level picture, LIME gives the
+            line-level reason. Both are in the Detail tab of the analysis panel.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>Is Smart Review free? Do I need an account or a credit card?</summary>
+          <p>
+            Yes. Smart Review is free, and you do not need to sign up, create an
+            account or enter a credit card. Create a project, upload your files and
+            the analysis runs immediately. There is no trial timer and no feature gate
+            on the vulnerability report, the explainability charts or the PDF export.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>Is my source code secure? What happens to the files I upload?</summary>
+          <p>
+            Your source code is encrypted at rest with <strong>AES-256-GCM</strong>
+            before it is written to the database, so the stored blob is not readable as
+            plain text. Analysis runs on the encrypted-at-rest copy and the decrypted
+            content is only materialised in memory while a file is being scanned. You
+            can delete a project at any time.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>How long does an analysis take, and can I review multiple files at once?</summary>
+          <p>
+            A typical single file is analysed in a couple of seconds, and a project
+            with many files is processed file by file so one slow file never blocks the
+            rest. The review page gives you a tab per file, so you can compare the
+            source, risk score and vulnerability list for each file without leaving the
+            page. The URL updates as you switch, so a link to one specific file's
+            analysis can be bookmarked or shared.
+          </p>
+        </details>
+
+        <details class="faq-item">
+          <summary>Can I share or export the analysis results?</summary>
+          <p>
+            Yes. Use the <strong>Export</strong> button in the review toolbar to
+            produce a clean, print-ready report you can save as a PDF or share with
+            your team. The report contains the file summary, the risk score and the
+            full list of findings with their explanations.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <!-- ── CTA ───────────────────────────────────────────────────── -->
+    <section id="get-started" class="content-cta-block">
+      <h2>Run your first review</h2>
+      <p>
+        Create a project, upload your source files, and get a severity-ranked
+        vulnerability report with explainable AI in seconds. No account, no credit
+        card, no trial.
+      </p>
+      <a class="btn btn-primary" href="/">Start a free code review</a>
+    </section>
+
+  </article>
+</main>
+
+<!-- =========================================================
+     Footer
+     ========================================================= -->
+<footer class="content-footer">
+  <div class="content-footer__cols">
+    <div>
+      <p class="content-footer__brand">Smart Review</p>
+      <p class="content-footer__desc">
+        Free AI code review with explainable vulnerability detection for Python, Java,
+        C# and JavaScript.
+      </p>
+    </div>
+    <nav aria-label="Footer">
+      <p class="content-footer__heading">Pages</p>
+      <a href="/">Dashboard</a>
+      <a href="/review.html">Review editor</a>
+      <a href="/faq.html">AI code review guide</a>
+    </nav>
+    <nav aria-label="Developer resources">
+      <p class="content-footer__heading">Developers</p>
+      <a href="/api/docs/">API documentation</a>
+      <a href="/api/redoc/">API reference</a>
+      <a href="/api/v1/health/">Service health</a>
+    </nav>
+  </div>
+  <p class="content-footer__legal">
+    © 2026 Smart Review. Source code you upload is encrypted at rest with AES-256-GCM.
+  </p>
+</footer>
+
+</body>
+</html>

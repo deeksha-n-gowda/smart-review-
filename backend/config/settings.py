@@ -55,6 +55,15 @@ if "testserver" not in ALLOWED_HOSTS:
 # so request.is_secure() and CSRF's HTTPS referer checks behave correctly.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Security headers (applied in production only — plain-http localhost must
+# keep working for local development).
+if not DEBUG:
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    X_FRAME_OPTIONS = "SAMEORIGIN"
+
 # CSRF requires the full origin (scheme + host) for POSTs such as admin login.
 CSRF_TRUSTED_ORIGINS = [
     o.strip()
@@ -77,6 +86,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     "rest_framework",
+    "drf_spectacular",   # OpenAPI schema + Swagger/Redoc templates (APP_DIRS)
     "corsheaders",
 
     "core",
@@ -88,6 +98,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Compresses HTML/CSS/JS/JSON responses (the frontend pages and their
+    # assets are served directly by Django, so WhiteNoise's own compression
+    # does not cover them). Typical saving: 60-75% of the transferred bytes.
+    "django.middleware.gzip.GZipMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
